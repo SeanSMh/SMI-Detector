@@ -1,0 +1,61 @@
+<idea-plugin>
+  <id>com.sqb.complexityradar</id>
+  <name>Complexity Radar</name>
+  <vendor email="sqb@example.com">sqb</vendor>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.java</depends>
+  <depends>com.intellij.modules.vcs</depends>
+  <depends>org.jetbrains.kotlin</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <toolWindow
+        id="Complexity Radar"
+        factoryClass="com.sqb.complexityradar.ide.toolwindow.ComplexityRadarToolWindowFactory"
+        anchor="right"
+        secondary="true"/>
+    <projectViewNodeDecorator implementation="com.sqb.complexityradar.ide.projectview.ComplexityProjectViewDecorator"/>
+    <editorNotificationProvider implementation="com.sqb.complexityradar.ide.editor.ComplexityEditorNotificationProvider"/>
+    <codeInsight.lineMarkerProvider
+        language="JAVA"
+        implementationClass="com.sqb.complexityradar.ide.gutter.ComplexityLineMarkerProvider"/>
+    <codeInsight.lineMarkerProvider
+        language="kotlin"
+        implementationClass="com.sqb.complexityradar.ide.gutter.ComplexityLineMarkerProvider"/>
+    <postStartupActivity implementation="com.sqb.complexityradar.ide.startup.ComplexityRadarStartupActivity"/>
+    <projectConfigurable
+        instance="com.sqb.complexityradar.ide.settings.ComplexityRadarConfigurable"
+        id="com.sqb.complexityradar.settings"
+        displayName="Complexity Radar"
+        parentId="tools"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="org.jetbrains.kotlin">
+    <supportsKotlinPluginMode supportsK2="true"/>
+  </extensions>
+
+  <actions>
+    <action
+        id="ComplexityRadar.OpenToolWindow"
+        class="com.sqb.complexityradar.ide.actions.OpenRadarToolWindowAction"
+        text="Open Complexity Radar"
+        description="Open the Complexity Radar tool window">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action
+        id="ComplexityRadar.CopyPrompt"
+        class="com.sqb.complexityradar.ide.actions.CopyRefactorPromptAction"
+        text="Copy Refactor Prompt"
+        description="Copy the AI refactor prompt for the current file"/>
+    <action
+        id="ComplexityRadar.RunExternalCommand"
+        class="com.sqb.complexityradar.ide.actions.RunExternalCommandAction"
+        text="Run Complexity External Command"
+        description="Run the configured external command for the current file"/>
+    <action
+        id="ComplexityRadar.ToggleMode"
+        class="com.sqb.complexityradar.ide.actions.ToggleAnalysisModeAction"
+        text="Reanalyze Current File Accurately"
+        description="Reanalyze the current file in accurate mode"/>
+  </actions>
+</idea-plugin>
