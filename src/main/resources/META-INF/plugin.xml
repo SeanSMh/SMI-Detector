@@ -28,6 +28,7 @@
         id="com.sqb.complexityradar.settings"
         displayName="Complexity Radar"
         parentId="tools"/>
+    <checkinHandlerFactory implementation="com.sqb.complexityradar.ide.vcs.ComplexityRadarCheckinHandlerFactory"/>
   </extensions>
 
   <extensions defaultExtensionNs="org.jetbrains.kotlin">

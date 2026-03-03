@@ -4,17 +4,20 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.sqb.complexityradar.core.model.ComplexityResult
 import com.sqb.complexityradar.core.model.ScoreDigest
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
 
 class ComplexityResultStore(
     private val projectBasePath: String?,
 ) {
     private val results = ConcurrentHashMap<String, ComplexityResult>()
+    private val diskIoExecutor: ExecutorService = AppExecutorUtil.createBoundedApplicationPoolExecutor("ComplexityRadarCacheIo", 1)
 
     fun put(
         file: VirtualFile,
@@ -23,10 +26,8 @@ class ComplexityResultStore(
     ) {
         results[file.url] = result
         file.putUserData(DIGEST_KEY, digest)
-        runCatching {
+        enqueueDiskIo("persist ${result.filePath}") {
             writeToDisk(result)
-        }.onFailure { error ->
-            LOG.warn("Failed to persist complexity cache for ${result.filePath}", error)
         }
     }
 
@@ -39,13 +40,11 @@ class ComplexityResultStore(
     fun resultsFor(files: Collection<VirtualFile>): List<ComplexityResult> = files.mapNotNull { results[it.url] }
 
     fun invalidate(file: VirtualFile) {
-        results.remove(file.url)
-        file.putUserData(DIGEST_KEY, null)
-        runCatching {
-            deleteFromDisk(file.url)
-        }.onFailure { error ->
-            LOG.warn("Failed to delete complexity cache for ${file.path}", error)
-        }
+        invalidateByUrl(file.url, file)
+    }
+
+    fun invalidateByUrl(fileUrl: String) {
+        invalidateByUrl(fileUrl, VirtualFileManager.getInstance().findFileByUrl(fileUrl))
     }
 
     fun clearAll() {
@@ -53,16 +52,18 @@ class ComplexityResultStore(
             .mapNotNull { VirtualFileManager.getInstance().findFileByUrl(it) }
             .forEach { file -> file.putUserData(DIGEST_KEY, null) }
         results.clear()
-        cacheDir()?.let { dir ->
-            if (Files.exists(dir)) {
-                Files.walk(dir).use { stream ->
-                    stream
-                        .sorted(Comparator.reverseOrder())
-                        .forEach { path ->
-                            if (path != dir) {
-                                Files.deleteIfExists(path)
+        enqueueDiskIo("clear cache") {
+            cacheDir()?.let { dir ->
+                if (Files.exists(dir)) {
+                    Files.walk(dir).use { stream ->
+                        stream
+                            .sorted(Comparator.reverseOrder())
+                            .forEach { path ->
+                                if (path != dir) {
+                                    Files.deleteIfExists(path)
+                                }
                             }
-                        }
+                    }
                 }
             }
         }
@@ -96,6 +97,33 @@ class ComplexityResultStore(
     private fun deleteFromDisk(fileUrl: String) {
         val dir = cacheDir() ?: return
         Files.deleteIfExists(dir.resolve(fileNameFor(fileUrl)))
+    }
+
+    fun dispose() {
+        diskIoExecutor.shutdown()
+    }
+
+    private fun enqueueDiskIo(
+        actionLabel: String,
+        action: () -> Unit,
+    ) {
+        diskIoExecutor.execute {
+            runCatching(action).onFailure { error ->
+                LOG.warn("Failed to $actionLabel", error)
+            }
+        }
+    }
+
+    private fun invalidateByUrl(
+        fileUrl: String,
+        file: VirtualFile?,
+    ) {
+        results.remove(fileUrl)
+        file?.putUserData(DIGEST_KEY, null)
+        val pathLabel = file?.path ?: fileUrl
+        enqueueDiskIo("delete $pathLabel") {
+            deleteFromDisk(fileUrl)
+        }
     }
 
     private fun cacheDir(): Path? {

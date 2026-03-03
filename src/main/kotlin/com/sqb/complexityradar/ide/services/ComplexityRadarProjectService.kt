@@ -6,8 +6,8 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.FileEditorManagerEvent
-import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.vcs.ProjectLevelVcsManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
@@ -19,8 +19,6 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
-import com.intellij.psi.PsiTreeChangeAdapter
-import com.intellij.psi.PsiTreeChangeEvent
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.update.MergingUpdateQueue
 import com.intellij.util.ui.update.Update
@@ -58,15 +56,16 @@ class ComplexityRadarProjectService(
     private val adapters: List<LanguageAdapter> = listOf(KotlinLanguageAdapter(scorer), JavaLanguageAdapter(scorer))
     private val promotedRedFiles = ConcurrentHashMap.newKeySet<String>()
     private val queue = MergingUpdateQueue("ComplexityRadarAnalysis", 800, true, null, this)
+    private val publishQueue = MergingUpdateQueue("ComplexityRadarPublish", 300, true, null, this)
+    private val pendingPublishedFileUrls = ConcurrentHashMap.newKeySet<String>()
+    private val vcsTriggeredVfsBatch = AtomicBoolean(false)
 
     fun start() {
         if (!started.compareAndSet(false, true)) {
             return
         }
         store.restoreFromDisk()
-        registerListeners()
-        analyzeOpenFiles()
-        analyzeChangedFiles()
+        registerVcsAwareListeners()
         analyzeProject()
     }
 
@@ -76,41 +75,103 @@ class ComplexityRadarProjectService(
 
     fun queueProjectAnalysis(
         onProgress: (processed: Int, total: Int) -> Unit = { _, _ -> },
-    ): Int {
-        val fileIndex = ProjectFileIndex.getInstance(project)
-        val scheduled = mutableListOf<Pair<VirtualFile, AnalyzeMode>>()
-        fileIndex.iterateContent { file ->
-            if (shouldAnalyze(file) && fileIndex.isInSource(file)) {
-                scheduled += file to configService.getConfig(file).mode.default
+    ): ProjectQueueReport {
+        val collection =
+            ReadAction.compute<ProjectQueueCollection, RuntimeException> {
+                val collected = linkedMapOf<String, VirtualFile>()
+                var visitedCount = 0
+                var supportedCount = 0
+                var withinProjectCount = 0
+                var fallbackUsed = false
+                var currentFileFallbackUsed = false
+
+                fun collect(file: VirtualFile) {
+                    visitedCount += 1
+                    if (!isSupportedCandidate(file)) {
+                        return
+                    }
+                    supportedCount += 1
+                    if (!isWithinProject(file)) {
+                        return
+                    }
+                    withinProjectCount += 1
+                    collected.putIfAbsent(file.url, file)
+                }
+
+                ProjectFileIndex.getInstance(project).iterateContent { file ->
+                    collect(file)
+                    true
+                }
+
+                if (collected.isEmpty()) {
+                    fallbackUsed = true
+                    project.basePath
+                        ?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+                        ?.let { projectDir ->
+                            VfsUtilCore.iterateChildrenRecursively(projectDir, null) { file ->
+                                collect(file)
+                                true
+                            }
+                        }
+                }
+
+                if (collected.isEmpty()) {
+                    currentFileFallbackUsed = true
+                    currentFile()?.let(::collect)
+                }
+
+                ProjectQueueCollection(
+                    scheduled = collected,
+                    visitedCount = visitedCount,
+                    supportedCount = supportedCount,
+                    withinProjectCount = withinProjectCount,
+                    fallbackUsed = fallbackUsed,
+                    currentFileFallbackUsed = currentFileFallbackUsed,
+                )
             }
-            true
+
+        val scheduled = linkedMapOf<String, Pair<VirtualFile, AnalyzeMode>>()
+        var excludedByConfigCount = 0
+        collection.scheduled.values.forEach { file ->
+            val config = configService.getConfig(file)
+            if (config.isExcluded(file)) {
+                excludedByConfigCount += 1
+            } else {
+                scheduled.putIfAbsent(file.url, file to config.mode.default)
+            }
         }
+
         val total = scheduled.size
         if (total == 0) {
             onProgress(0, 0)
-            return 0
+            return ProjectQueueReport(
+                queuedCount = 0,
+                visitedCount = collection.visitedCount,
+                supportedCount = collection.supportedCount,
+                withinProjectCount = collection.withinProjectCount,
+                excludedByConfigCount = excludedByConfigCount,
+                fallbackUsed = collection.fallbackUsed,
+                currentFileFallbackUsed = collection.currentFileFallbackUsed,
+                queuedFileUrls = emptyList(),
+            )
         }
-        scheduled.forEachIndexed { index, (file, mode) ->
-            scheduleAnalysis(file, mode)
-            onProgress(index + 1, total)
-        }
-        return total
-    }
-
-    fun analyzeOpenFiles() {
-        FileEditorManager.getInstance(project).openFiles.forEach { file ->
-            if (shouldAnalyze(file)) {
-                scheduleAnalysis(file, preferredModeFor(file, fromEditor = true))
+        scheduled.values.forEachIndexed { index, (file, mode) ->
+            enqueueAnalysis(file, mode)
+            val processed = index + 1
+            if (processed == 1 || processed == total || processed % 10 == 0) {
+                onProgress(processed, total)
             }
         }
-    }
-
-    fun analyzeChangedFiles() {
-        vcsFacade.changedFiles().forEach { file ->
-            if (shouldAnalyze(file)) {
-                scheduleAnalysis(file, AnalyzeMode.FAST)
-            }
-        }
+        return ProjectQueueReport(
+            queuedCount = total,
+            visitedCount = collection.visitedCount,
+            supportedCount = collection.supportedCount,
+            withinProjectCount = collection.withinProjectCount,
+            excludedByConfigCount = excludedByConfigCount,
+            fallbackUsed = collection.fallbackUsed,
+            currentFileFallbackUsed = collection.currentFileFallbackUsed,
+            queuedFileUrls = scheduled.keys.toList(),
+        )
     }
 
     fun scheduleAnalysis(
@@ -120,6 +181,13 @@ class ComplexityRadarProjectService(
         if (!shouldAnalyze(file)) {
             return
         }
+        enqueueAnalysis(file, mode)
+    }
+
+    private fun enqueueAnalysis(
+        file: VirtualFile,
+        mode: AnalyzeMode,
+    ) {
         val identity = "${file.url}:${mode.name}"
         queue.queue(
             object : Update(identity) {
@@ -150,6 +218,16 @@ class ComplexityRadarProjectService(
         currentFile()?.let { scheduleAnalysis(it, mode) }
     }
 
+    fun scheduleFiles(
+        files: Collection<VirtualFile>,
+        mode: AnalyzeMode? = null,
+    ) {
+        files.forEach { file ->
+            val resolvedMode = mode ?: preferredModeFor(file)
+            scheduleAnalysis(file, resolvedMode)
+        }
+    }
+
     fun currentResult(): ComplexityResult? = currentFile()?.let(::getResult)
 
     fun buildPrompt(result: ComplexityResult): String = aiPromptService.buildPrompt(result)
@@ -158,8 +236,6 @@ class ComplexityRadarProjectService(
 
     fun savePrompt(result: ComplexityResult) = aiPromptService.savePrompt(result)
 
-    fun savePromptForCurrentFile() = currentResult()?.let(::savePrompt)
-
     fun exportReports() = exportService.exportAll(allResults(), changedResults())
 
     fun uiSettings() = uiSettingsService.state
@@ -167,6 +243,9 @@ class ComplexityRadarProjectService(
     fun openRadarForCurrentFile() {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Complexity Radar") ?: return
         val file = currentFile()
+        file
+            ?.takeIf(::shouldAnalyze)
+            ?.let { scheduleAnalysis(it, preferredModeFor(it, fromEditor = true)) }
         toolWindow.show {
             toolWindow.contentManager.contents.forEach { content ->
                 (content.component as? RefreshableComplexityView)?.revealFile(file)
@@ -178,66 +257,72 @@ class ComplexityRadarProjectService(
         configService.reload()
         promotedRedFiles.clear()
         store.clearAll()
-        analyzeOpenFiles()
-        analyzeChangedFiles()
+        refreshRadarViews()
         analyzeProject()
         uiRefreshService.refreshCurrentFile()
     }
 
-    fun fullRescanProject() {
-        promotedRedFiles.clear()
-        store.clearAll()
-        analyzeOpenFiles()
-        analyzeChangedFiles()
-        analyzeProject()
-        uiRefreshService.refreshCurrentFile()
+    override fun dispose() {
+        uiRefreshService.dispose()
+        store.dispose()
     }
 
-    override fun dispose() = Unit
+    private fun refreshRadarViews() {
+        if (project.isDisposed) {
+            return
+        }
+        ToolWindowManager.getInstance(project).getToolWindow("Complexity Radar")
+            ?.contentManager
+            ?.contents
+            ?.forEach { content ->
+                (content.component as? RefreshableComplexityView)?.refreshView()
+            }
+    }
 
-    private fun registerListeners() {
+    private fun registerVcsAwareListeners() {
         val connection = project.messageBus.connect(this)
         connection.subscribe(
             VirtualFileManager.VFS_CHANGES,
             object : BulkFileListener {
+                override fun before(events: List<VFileEvent>) {
+                    if (ProjectLevelVcsManager.getInstance(project).isBackgroundVcsOperationRunning) {
+                        vcsTriggeredVfsBatch.set(true)
+                    }
+                }
+
                 override fun after(events: List<VFileEvent>) {
+                    val isVcsBatch =
+                        vcsTriggeredVfsBatch.getAndSet(false) ||
+                            ProjectLevelVcsManager.getInstance(project).isBackgroundVcsOperationRunning
+                    if (!isVcsBatch) {
+                        return
+                    }
                     var configChanged = false
-                    val changedFiles = mutableSetOf<VirtualFile>()
+                    val changedFiles = linkedSetOf<VirtualFile>()
                     events.forEach { event ->
                         val file = event.file ?: return@forEach
                         if (file.name == "radar.yaml") {
                             configChanged = true
-                        } else if (shouldAnalyze(file)) {
-                            changedFiles += file
+                            return@forEach
+                        }
+                        val hadCachedState = store.get(file) != null || store.getDigest(file) != null
+                        val canAnalyzeNow = shouldAnalyze(file)
+                        if (hadCachedState) {
                             store.invalidate(file)
+                        }
+                        if (canAnalyzeNow) {
+                            changedFiles += file
                         }
                     }
                     if (configChanged) {
                         reloadConfig()
                         return
                     }
-                    changedFiles.forEach { file -> scheduleAnalysis(file, preferredModeFor(file)) }
-                }
-            },
-        )
-        connection.subscribe(
-            FileEditorManagerListener.FILE_EDITOR_MANAGER,
-            object : FileEditorManagerListener {
-                override fun selectionChanged(event: FileEditorManagerEvent) {
-                    event.newFile?.takeIf(::shouldAnalyze)?.let { scheduleAnalysis(it, preferredModeFor(it, fromEditor = true)) }
-                }
-            },
-        )
-        PsiManager.getInstance(project).addPsiTreeChangeListener(
-            object : PsiTreeChangeAdapter() {
-                override fun childrenChanged(event: PsiTreeChangeEvent) {
-                    event.file?.virtualFile?.takeIf(::shouldAnalyze)?.let { file ->
-                        store.invalidate(file)
-                        scheduleAnalysis(file, preferredModeFor(file))
+                    if (changedFiles.isNotEmpty()) {
+                        scheduleFiles(changedFiles)
                     }
                 }
             },
-            this,
         )
     }
 
@@ -246,47 +331,109 @@ class ComplexityRadarProjectService(
         mode: AnalyzeMode,
     ) {
         ReadAction
-            .nonBlocking<ComplexityResult?> {
+            .nonBlocking<AnalysisAttempt> {
                 computeResult(file, mode)
             }.expireWith(this)
-            .finishOnUiThread(ModalityState.any()) { result ->
-                if (result == null) {
-                    return@finishOnUiThread
+            .finishOnUiThread(ModalityState.any()) { attempt ->
+                when (attempt) {
+                    is AnalysisAttempt.Success -> {
+                        val result = attempt.result
+                        val virtualFile =
+                            VirtualFileManager.getInstance().findFileByUrl(result.fileUrl)
+                                ?: run {
+                                    store.invalidateByUrl(result.fileUrl)
+                                    queueResultPublication(result.fileUrl)
+                                    return@finishOnUiThread
+                                }
+                        store.put(virtualFile, result, scorer.digest(result))
+                        queueResultPublication(result.fileUrl)
+                        maybePromoteAccurate(virtualFile, result)
+                    }
+
+                    is AnalysisAttempt.FileGone,
+                    is AnalysisAttempt.Unsupported,
+                    -> {
+                        store.invalidateByUrl(attempt.fileUrl)
+                        queueResultPublication(attempt.fileUrl)
+                    }
+
+                    is AnalysisAttempt.Cancelled,
+                    is AnalysisAttempt.TransientFailure,
+                    -> {
+                        queueResultPublication(attempt.fileUrl)
+                    }
                 }
-                val virtualFile = VirtualFileManager.getInstance().findFileByUrl(result.fileUrl) ?: return@finishOnUiThread
-                store.put(virtualFile, result, scorer.digest(result))
-                project.messageBus.syncPublisher(ComplexityResultListener.TOPIC).resultsUpdated(listOf(virtualFile))
-                uiRefreshService.refresh(listOf(virtualFile))
-                maybePromoteAccurate(virtualFile, result)
             }.submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    private fun queueResultPublication(fileUrl: String) {
+        pendingPublishedFileUrls += fileUrl
+        publishQueue.queue(
+            object : Update("publish-results") {
+                override fun run() {
+                    flushResultPublication()
+                }
+            },
+        )
+    }
+
+    private fun flushResultPublication() {
+        val fileUrls = pendingPublishedFileUrls.toList()
+        if (fileUrls.isEmpty()) {
+            return
+        }
+        pendingPublishedFileUrls.removeAll(fileUrls.toSet())
+        val files =
+            fileUrls
+                .mapNotNull { url -> VirtualFileManager.getInstance().findFileByUrl(url) }
+                .distinctBy { it.url }
+        project.messageBus.syncPublisher(ComplexityResultListener.TOPIC).resultsUpdated(
+            ResultUpdateBatch(
+                fileUrls = fileUrls,
+            ),
+        )
+        if (files.isNotEmpty()) {
+            uiRefreshService.refresh(files)
+        }
     }
 
     private fun computeResult(
         file: VirtualFile,
         mode: AnalyzeMode,
-    ): ComplexityResult? {
+    ): AnalysisAttempt {
         val config = configService.getConfig(file)
         if (config.isExcluded(file)) {
-            return null
+            return AnalysisAttempt.Unsupported(file.url)
         }
-        val psiFile = psiFile(file) ?: return null
-        val adapter = adapters.firstOrNull { it.supports(psiFile) } ?: return null
+        if (!file.isValid) {
+            return AnalysisAttempt.FileGone(file.url)
+        }
+        val psiFile =
+            psiFile(file)
+                ?: return if (file.isValid) {
+                    AnalysisAttempt.TransientFailure(file.url)
+                } else {
+                    AnalysisAttempt.FileGone(file.url)
+                }
+        val adapter = adapters.firstOrNull { it.supports(psiFile) } ?: return AnalysisAttempt.Unsupported(file.url)
         return try {
             val summary = adapter.summarize(psiFile, mode, config)
             val hotspots = adapter.hotspots(psiFile, mode, config)
-            scorer.score(
-                summary = summary,
-                fileUrl = file.url,
-                filePath = file.path,
-                mode = mode,
-                config = config,
-                hotspots = hotspots,
-                churnNormalized = 0.0,
+            AnalysisAttempt.Success(
+                scorer.score(
+                    summary = summary,
+                    fileUrl = file.url,
+                    filePath = file.path,
+                    mode = mode,
+                    config = config,
+                    hotspots = hotspots,
+                    churnNormalized = 0.0,
+                ),
             )
         } catch (_: ProcessCanceledException) {
-            null
+            AnalysisAttempt.Cancelled(file.url)
         } catch (_: Throwable) {
-            null
+            AnalysisAttempt.TransientFailure(file.url)
         }
     }
 
@@ -380,13 +527,21 @@ class ComplexityRadarProjectService(
     }
 
     private fun shouldAnalyze(file: VirtualFile): Boolean =
+        ReadAction.compute<Boolean, RuntimeException> { shouldAnalyzeInRead(file) }
+
+    private fun shouldAnalyzeInRead(file: VirtualFile): Boolean =
         !file.isDirectory &&
             file.isValid &&
             isSupportedSourceFile(file) &&
-            isProjectContent(file) &&
+            isWithinProject(file) &&
             !configService.getConfig(file).isExcluded(file)
 
-    private fun isProjectContent(file: VirtualFile): Boolean {
+    private fun isSupportedCandidate(file: VirtualFile): Boolean =
+        !file.isDirectory &&
+            file.isValid &&
+            isSupportedSourceFile(file)
+
+    private fun isWithinProject(file: VirtualFile): Boolean {
         val fileIndex = ProjectFileIndex.getInstance(project)
         return fileIndex.isInContent(file) && !fileIndex.isExcluded(file)
     }
@@ -410,4 +565,46 @@ data class AggregateBucket(
     val redCount: Int,
     val fileCount: Int,
     val topResults: List<ComplexityResult>,
+)
+
+data class ProjectQueueReport(
+    val queuedCount: Int,
+    val visitedCount: Int,
+    val supportedCount: Int,
+    val withinProjectCount: Int,
+    val excludedByConfigCount: Int,
+    val fallbackUsed: Boolean,
+    val currentFileFallbackUsed: Boolean,
+    val queuedFileUrls: List<String>,
+)
+
+private sealed class AnalysisAttempt(open val fileUrl: String) {
+    data class Success(
+        val result: ComplexityResult,
+    ) : AnalysisAttempt(result.fileUrl)
+
+    data class FileGone(
+        override val fileUrl: String,
+    ) : AnalysisAttempt(fileUrl)
+
+    data class Unsupported(
+        override val fileUrl: String,
+    ) : AnalysisAttempt(fileUrl)
+
+    data class Cancelled(
+        override val fileUrl: String,
+    ) : AnalysisAttempt(fileUrl)
+
+    data class TransientFailure(
+        override val fileUrl: String,
+    ) : AnalysisAttempt(fileUrl)
+}
+
+private data class ProjectQueueCollection(
+    val scheduled: LinkedHashMap<String, VirtualFile>,
+    val visitedCount: Int,
+    val supportedCount: Int,
+    val withinProjectCount: Int,
+    val fallbackUsed: Boolean,
+    val currentFileFallbackUsed: Boolean,
 )

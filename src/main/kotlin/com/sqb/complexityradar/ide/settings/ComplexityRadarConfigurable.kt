@@ -5,7 +5,6 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.EditorNotifications
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
 import com.sqb.complexityradar.settings.ComplexityUiSettingsService
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -80,9 +79,6 @@ class ComplexityRadarConfigurable(
         }
         EditorNotifications.getInstance(project).updateAllNotifications()
         DaemonCodeAnalyzer.getInstance(project).restart()
-        FileEditorManager.getInstance(project).selectedFiles.forEach {
-            ComplexityRadarProjectService.getInstance(project).scheduleAnalysis(it)
-        }
     }
 
     override fun reset() {

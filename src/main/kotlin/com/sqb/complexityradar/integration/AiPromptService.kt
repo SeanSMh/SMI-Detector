@@ -35,10 +35,12 @@ class AiPromptService(
             appendLine("Constraints:")
             appendLine("- Do not change public APIs unless necessary.")
             appendLine("- Prefer reducing nesting, splitting responsibilities, and extracting helper functions.")
+            appendLine("- Prefer small, incremental refactors. Do not rewrite the entire file unless absolutely necessary.")
             appendLine("- Keep behavior unchanged and propose tests for risky changes.")
             appendLine()
             appendLine("Output:")
-            appendLine("- Refactoring steps")
+            appendLine("- First provide a concise refactoring plan, then provide the updated code or patch.")
+            appendLine("- Refactoring steps (provide the plan first)")
             appendLine("- Updated code or patch")
             appendLine("- Risks and validation notes")
         }

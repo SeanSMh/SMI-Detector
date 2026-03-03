@@ -1,10 +1,13 @@
 package com.sqb.complexityradar.ide.services
 
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.messages.Topic
 
+data class ResultUpdateBatch(
+    val fileUrls: List<String>,
+)
+
 fun interface ComplexityResultListener {
-    fun resultsUpdated(files: Collection<VirtualFile>)
+    fun resultsUpdated(batch: ResultUpdateBatch)
 
     companion object {
         val TOPIC: Topic<ComplexityResultListener> =
