@@ -47,9 +47,9 @@ class RunExternalCommandAction : AnAction() {
         val promptPath = service.savePrompt(result)
         val rendered =
             template
-                .replace("\${file}", result.filePath)
+                .replace("\${file}", shellEscape(result.filePath))
                 .replace("\${score}", result.score.toString())
-                .replace("\${prompt}", promptPath?.toString().orEmpty())
+                .replace("\${prompt}", shellEscape(promptPath?.toString().orEmpty()))
         val command =
             if (SystemInfo.isWindows) {
                 GeneralCommandLine("cmd", "/c", rendered)
@@ -59,11 +59,25 @@ class RunExternalCommandAction : AnAction() {
         OSProcessHandler(command).startNotify()
         Messages.showInfoMessage(project, "Started external command:\n$rendered", "Complexity Radar")
     }
+
+    private fun shellEscape(value: String): String {
+        if (value.isEmpty()) return "''"
+        return "'" + value.replace("'", "'\\''") + "'"
+    }
 }
 
 class ToggleAnalysisModeAction : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         ComplexityRadarProjectService.getInstance(project).reanalyzeCurrentFile(AnalyzeMode.ACCURATE)
+    }
+}
+
+class ToggleGutterIconsAction : AnAction() {
+    override fun actionPerformed(event: AnActionEvent) {
+        val project = event.project ?: return
+        val settings = com.sqb.complexityradar.settings.ComplexityUiSettingsService.getInstance(project)
+        settings.update { it.showGutterIcons = !it.showGutterIcons }
+        com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
     }
 }

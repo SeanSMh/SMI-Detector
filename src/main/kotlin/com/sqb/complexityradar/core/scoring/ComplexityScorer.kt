@@ -1,6 +1,7 @@
 package com.sqb.complexityradar.core.scoring
 
 import com.sqb.complexityradar.core.model.ComplexityResult
+import com.sqb.complexityradar.core.model.toDigest
 import com.sqb.complexityradar.core.model.DomainTag
 import com.sqb.complexityradar.core.model.FactorContribution
 import com.sqb.complexityradar.core.model.FactorType
@@ -130,17 +131,7 @@ class ComplexityScorer {
         )
     }
 
-    fun digest(result: ComplexityResult): ScoreDigest =
-        ScoreDigest(
-            score = result.score,
-            severity = result.severity,
-            mode = result.mode,
-            topContributions = result.contributions.take(3).map { "${it.type.displayName} ${(it.weightedScore * 100).roundToInt()}" },
-            effectiveLoc = result.effectiveLoc,
-            maxDepth = maxOf(result.maxBlockDepth, result.maxLambdaDepth),
-            domainCount = result.domainCount,
-            hotspotCount = result.hotspots.size,
-        )
+    fun digest(result: ComplexityResult): ScoreDigest = result.toDigest()
 
     fun scoreHotspot(
         methodName: String,

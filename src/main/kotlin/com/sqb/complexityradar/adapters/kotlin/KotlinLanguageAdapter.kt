@@ -220,7 +220,7 @@ class KotlinLanguageAdapter(
             emptyCatchCount = emptyCatchCount,
             bangBangCount = AnalysisSupport.countBangBang(text),
             magicNumberCount = AnalysisSupport.countMagicNumbers(text),
-            androidKind = resolveAndroidKind(superTypes),
+            androidKind = AnalysisSupport.resolveAndroidKind(superTypes),
             annotations = annotations,
             superTypes = superTypes,
             classNames = classNames,
@@ -339,13 +339,14 @@ class KotlinLanguageAdapter(
             },
         )
 
-        val controlFlow =
-            branchCount +
-                simpleWhenBranchCount * 0.25 +
-                loopCount * 1.2 +
-                tryCatchCount +
-                ternaryCount * 0.7 +
-                logicalOpCount * 0.4
+        val controlFlow = AnalysisSupport.computeControlFlow(
+            branchCount = branchCount,
+            simpleWhenBranchCount = simpleWhenBranchCount,
+            loopCount = loopCount,
+            tryCatchCount = tryCatchCount,
+            ternaryCount = ternaryCount,
+            logicalOpCount = logicalOpCount,
+        )
         return KotlinMethodMetrics(
             length = AnalysisSupport.effectiveLoc(function.text),
             controlFlow = controlFlow,
@@ -358,17 +359,6 @@ class KotlinLanguageAdapter(
         return '\n' !in text && text.length <= 80
     }
 
-    private fun resolveAndroidKind(superTypes: Set<String>): String? {
-        val joined = superTypes.joinToString(" ")
-        return when {
-            joined.contains("Activity") -> "Activity"
-            joined.contains("Fragment") -> "Fragment"
-            joined.contains("Application") -> "Application"
-            joined.contains("ContentProvider") -> "ContentProvider"
-            joined.contains("ViewModel") -> "ViewModel"
-            else -> null
-        }
-    }
 }
 
 private data class KotlinMethodMetrics(

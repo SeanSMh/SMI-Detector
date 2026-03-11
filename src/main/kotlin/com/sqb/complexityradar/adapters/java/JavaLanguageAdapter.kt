@@ -2,7 +2,6 @@ package com.sqb.complexityradar.adapters.java
 
 import com.intellij.psi.JavaRecursiveElementVisitor
 import com.intellij.psi.JavaTokenType
-import com.intellij.psi.PsiBinaryExpression
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiConditionalExpression
 import com.intellij.psi.PsiDoWhileStatement
@@ -180,13 +179,6 @@ class JavaLanguageAdapter(
                     }
                     super.visitPolyadicExpression(expression)
                 }
-
-                override fun visitBinaryExpression(expression: PsiBinaryExpression) {
-                    if (expression.operationTokenType == JavaTokenType.ANDAND || expression.operationTokenType == JavaTokenType.OROR) {
-                        logicalOpCount += 1
-                    }
-                    super.visitBinaryExpression(expression)
-                }
             },
         )
 
@@ -215,7 +207,7 @@ class JavaLanguageAdapter(
             emptyCatchCount = emptyCatchCount,
             bangBangCount = 0,
             magicNumberCount = AnalysisSupport.countMagicNumbers(text),
-            androidKind = resolveAndroidKind(superTypes),
+            androidKind = AnalysisSupport.resolveAndroidKind(superTypes),
             annotations = annotations,
             superTypes = superTypes,
             classNames = classNames,
@@ -332,22 +324,16 @@ class JavaLanguageAdapter(
                     }
                     super.visitPolyadicExpression(expression)
                 }
-
-                override fun visitBinaryExpression(expression: PsiBinaryExpression) {
-                    if (expression.operationTokenType == JavaTokenType.ANDAND || expression.operationTokenType == JavaTokenType.OROR) {
-                        logicalOpCount += 1
-                    }
-                    super.visitBinaryExpression(expression)
-                }
             },
         )
 
-        val controlFlow =
-            branchCount +
-                loopCount * 1.2 +
-                tryCatchCount +
-                ternaryCount * 0.7 +
-                logicalOpCount * 0.4
+        val controlFlow = AnalysisSupport.computeControlFlow(
+            branchCount = branchCount,
+            loopCount = loopCount,
+            tryCatchCount = tryCatchCount,
+            ternaryCount = ternaryCount,
+            logicalOpCount = logicalOpCount,
+        )
         return JavaMethodMetrics(
             length = AnalysisSupport.effectiveLoc(method.text),
             controlFlow = controlFlow,
@@ -355,17 +341,6 @@ class JavaLanguageAdapter(
         )
     }
 
-    private fun resolveAndroidKind(superTypes: Set<String>): String? {
-        val joined = superTypes.joinToString(" ")
-        return when {
-            joined.contains("Activity") -> "Activity"
-            joined.contains("Fragment") -> "Fragment"
-            joined.contains("Application") -> "Application"
-            joined.contains("ContentProvider") -> "ContentProvider"
-            joined.contains("ViewModel") -> "ViewModel"
-            else -> null
-        }
-    }
 }
 
 private data class JavaMethodMetrics(

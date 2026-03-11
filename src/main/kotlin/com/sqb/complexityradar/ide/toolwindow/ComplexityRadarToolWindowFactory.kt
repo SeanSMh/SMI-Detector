@@ -22,6 +22,7 @@ import com.sqb.complexityradar.ide.services.ComplexityResultListener
 import com.sqb.complexityradar.ide.services.RefreshableComplexityView
 import com.sqb.complexityradar.ide.ui.poopAccentColor
 import com.sqb.complexityradar.ide.ui.poopMutedColor
+import com.sqb.complexityradar.ide.ui.poopScoreCount
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -31,7 +32,6 @@ import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.Graphics
 import java.awt.Graphics2D
-import java.awt.GridLayout
 import java.awt.Polygon
 import java.awt.RenderingHints
 import java.awt.event.MouseAdapter
@@ -44,7 +44,6 @@ import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComponent
-import javax.swing.JEditorPane
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.OverlayLayout
@@ -87,16 +86,30 @@ private class FocusedComplexityRadarToolWindowPanel(
             isRepeats = false
         }
 
-    private val currentRefreshButton = actionButton("Refresh") { service.reanalyzeCurrentFile() }
-    private val analyzeProjectButton = actionButton("Analyze Project") { runAnalyzeProject() }
-    private val exportButton = actionButton("Export") { runExport() }
+    private val currentRefreshButton = subtleActionButton("Refresh") { service.reanalyzeCurrentFile() }
+    private val analyzeProjectButton = primaryActionButton("Analyze Project") { runAnalyzeProject() }
+    private val exportButton = subtleActionButton("Export") { runExport() }
+    private val toggleGutterButton = subtleActionButton(gutterButtonLabel()) { onToggleGutter() }
 
     private val currentTitleLabel = JLabel("Current File").apply { font = font.deriveFont(Font.BOLD, font.size2D + 4f) }
     private val currentMetaLabel = JLabel("Open a file and run analysis to inspect it.").apply { foreground = secondaryTextColor() }
-    private val currentPoopStrip = PoopRatingStrip(iconSize = 20, gap = 5)
+    private val currentSummaryLabel =
+        JLabel("Run Refresh to build a diagnosis.").apply {
+            foreground = poopAccentColor(Severity.ORANGE)
+            font = font.deriveFont(Font.BOLD, font.size2D + 0.5f)
+        }
     private val currentRadarPanel = RadarChartPanel()
-    private val currentDetailsPane = JEditorPane("text/html", currentEmptyState())
+    private val currentMainFactorLabel =
+        JLabel("–").apply {
+            foreground = secondaryTextColor()
+            font = font.deriveFont(font.size2D - 0.5f)
+        }
+    private val currentHotspotsPanel = detailListPanel()
 
+    private val projectSummaryStripLabel =
+        JLabel("–").apply {
+            foreground = secondaryTextColor()
+        }
     private val projectFilesValue = summaryValueLabel("0")
     private val projectAvgPoopValue = summaryValueLabel("0/5")
     private val projectRedValue = summaryValueLabel("0")
@@ -113,7 +126,12 @@ private class FocusedComplexityRadarToolWindowPanel(
             preferredSize = Dimension(JBUI.scale(220), JBUI.scale(8))
         }
     private val projectRadarPanel = RadarChartPanel()
-    private val projectNotesPane = JEditorPane("text/html", projectEmptyState())
+    private val projectPressureLabel =
+        JLabel("Run Analyze Project to build a smell map.").apply {
+            foreground = secondaryTextColor()
+            font = font.deriveFont(font.size2D - 0.5f)
+        }
+    private val projectSummaryPanel = detailListPanel()
     private val topFilesModel = DefaultListModel<ComplexityResult>()
     private val topFilesList = JBList(topFilesModel)
 
@@ -123,6 +141,7 @@ private class FocusedComplexityRadarToolWindowPanel(
     private var preferredFileUrl: String? = null
     private var projectStatusMessage: String? = null
     private var projectStatusDetails: String? = null
+    private var lastProjectSnapshot: FocusedViewSnapshot? = null
     private val pendingProjectResultUrls = linkedSetOf<String>()
     private var projectAnalysisTargetCount = 0
     private var projectAnalysisCompletedCount = 0
@@ -248,11 +267,11 @@ private class FocusedComplexityRadarToolWindowPanel(
                 "Analyze Project to build a global view."
             } else {
                 buildString {
-                    append("Most pressure comes from ")
-                    append(strongestFactors.joinToString(" and ").ifBlank { "stable code paths" })
-                    append(". Start with the top ")
+                    append("Start with the top ")
                     append(min(3, sortedResults.size))
-                    append(" files.")
+                    append(" files. ")
+                    append(strongestFactors.joinToString(" + ").ifBlank { "Stable code paths" })
+                    append(" lead the pressure.")
                 }
             }
         return FocusedViewSnapshot(
@@ -262,7 +281,7 @@ private class FocusedComplexityRadarToolWindowPanel(
             averageScore = averageScore,
             redCount = allResults.count { it.severity == Severity.RED },
             aggregateValues = aggregateValues,
-            aggregateSeverity = severityForScore(averageScore.roundToInt()),
+            aggregateSeverity = service.configFor().severityFor(averageScore.roundToInt()),
             projectSummary = projectSummary,
             targetFileUrl = targetFileUrl,
             targetFilePath = targetFile?.path,
@@ -287,36 +306,51 @@ private class FocusedComplexityRadarToolWindowPanel(
     private fun applyCurrentFile(result: ComplexityResult?) {
         if (result == null) {
             currentTitleLabel.text = "Current File"
-            currentPoopStrip.setScore(0, Severity.GREEN)
-            currentMetaLabel.text = "Reanalyze this file to inspect it."
+            currentMetaLabel.text = "Open a file and run analysis to inspect it."
+            currentSummaryLabel.text = "Run Refresh to build a diagnosis."
+            currentMainFactorLabel.text = "–"
             currentRadarPanel.setResult(null)
-            currentDetailsPane.text = currentEmptyState()
+            renderCurrentDetailPanels(null)
             return
         }
         currentTitleLabel.text = fileName(result.filePath)
-        currentPoopStrip.setScore(result.score, result.severity)
-        currentMetaLabel.text =
-            "${relativePath(result.filePath)}  |  Poop ${poopCountForScore(result.score)}/5  |  Raw ${result.score}  |  ${result.severity.label}"
+        currentMetaLabel.text = relativePath(result.filePath)
+        currentSummaryLabel.text = "Score ${result.score} (${result.severity.label})  •  ${leadingFactors(result)}"
+        currentMainFactorLabel.text = leadingFactors(result)
         currentRadarPanel.setResult(result)
-        currentDetailsPane.text = renderCurrentFileHtml(result)
+        renderCurrentDetailPanels(result)
     }
 
     private fun applyCurrentPending(filePath: String) {
         currentTitleLabel.text = fileName(filePath)
-        currentPoopStrip.setScore(0, Severity.GREEN)
-        currentMetaLabel.text = "Analyzing ${relativePath(filePath)}..."
+        currentMetaLabel.text = relativePath(filePath)
+        currentSummaryLabel.text = "This file is queued for analysis."
+        currentMainFactorLabel.text = "–"
         currentRadarPanel.setResult(null)
-        currentDetailsPane.text =
-            "<html><body style='padding:8px;color:#8f96a3;'>Analyzing this file. The breakdown will appear here shortly.</body></html>"
+        renderCurrentPendingPanels()
     }
 
     private fun applyProject(snapshot: FocusedViewSnapshot) {
+        lastProjectSnapshot = snapshot
         projectFilesValue.text = snapshot.projectResults.size.toString()
         val avgRounded = snapshot.averageScore.roundToInt().coerceIn(0, 100)
-        projectAvgPoopValue.text = "${poopCountForScore(avgRounded)}/5"
+        projectAvgPoopValue.text = "${poopScoreCount(avgRounded)}/5"
         projectRedValue.text = snapshot.redCount.toString()
+        val criticalText = if (snapshot.redCount > 0) "  \u2022  \u26a0 ${snapshot.redCount} Critical" else ""
+        projectSummaryStripLabel.text = "${snapshot.projectResults.size} files  \u2022  Avg Score $avgRounded$criticalText"
         projectRadarPanel.setAggregate(snapshot.aggregateValues, snapshot.aggregateSeverity)
-        projectNotesPane.text = renderProjectSummaryHtml(snapshot)
+        val strongestFactors =
+            snapshot.aggregateValues.entries
+                .sortedByDescending { it.value }
+                .take(2)
+                .map { it.key.displayName }
+        projectPressureLabel.text =
+            when {
+                snapshot.projectResults.isEmpty() -> "Run Analyze Project to build a smell map."
+                strongestFactors.isEmpty() -> "Pressure is currently balanced."
+                strongestFactors.size == 1 -> "${strongestFactors.first()} is driving most of the pressure."
+                else -> "${strongestFactors[0]} and ${strongestFactors[1]} dominate the current risk."
+            }
         topFilesModel.removeAllElements()
         snapshot.topFiles.forEach(topFilesModel::addElement)
     }
@@ -325,8 +359,9 @@ private class FocusedComplexityRadarToolWindowPanel(
         JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(12, 12, 0, 12)
             add(
-                JLabel("Complexity Radar").apply {
-                    font = font.deriveFont(Font.BOLD, font.size2D + 2f)
+                JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+                    isOpaque = false
+                    add(toggleGutterButton)
                 },
                 BorderLayout.WEST,
             )
@@ -363,70 +398,21 @@ private class FocusedComplexityRadarToolWindowPanel(
     private fun buildCurrentFileTab(): JComponent =
         JPanel(BorderLayout(JBUI.scale(12), JBUI.scale(12))).apply {
             border = cardBorder()
-            add(
-                JPanel(BorderLayout()).apply {
-                    border = JBUI.Borders.empty(14, 16, 8, 16)
-                    add(
-                        JPanel().apply {
-                            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-                            isOpaque = false
-                            add(currentTitleLabel)
-                            add(currentPoopStrip.apply { alignmentX = Component.LEFT_ALIGNMENT })
-                            add(currentMetaLabel)
-                        },
-                        BorderLayout.CENTER,
-                    )
-                    add(
-                        JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
-                            isOpaque = false
-                            add(currentRefreshButton)
-                        },
-                        BorderLayout.EAST,
-                    )
-                },
-                BorderLayout.NORTH,
-            )
-            add(
-                JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
-                    border = JBUI.Borders.empty(0, 16, 16, 16)
-                    add(
-                        JPanel(BorderLayout()).apply {
-                            border = cardBorder()
-                            add(
-                                JLabel("Why This File Smells").apply {
-                                    font = font.deriveFont(Font.BOLD)
-                                    border = JBUI.Borders.empty(8, 10, 0, 10)
-                                },
-                                BorderLayout.NORTH,
-                            )
-                            add(currentRadarPanel, BorderLayout.CENTER)
-                        },
-                        BorderLayout.WEST,
-                    )
-                    add(
-                        JPanel(BorderLayout()).apply {
-                            border = cardBorder()
-                            add(
-                                JLabel("Breakdown").apply {
-                                    font = font.deriveFont(Font.BOLD)
-                                    border = JBUI.Borders.empty(8, 10, 0, 10)
-                                },
-                                BorderLayout.NORTH,
-                            )
-                            configureHtmlPane(currentDetailsPane)
-                            add(JBScrollPane(currentDetailsPane), BorderLayout.CENTER)
-                        },
-                        BorderLayout.CENTER,
-                    )
-                },
-                BorderLayout.CENTER,
-            )
+            add(buildCurrentHeader(), BorderLayout.NORTH)
+            add(buildCurrentAnalysisRow(), BorderLayout.CENTER)
         }
 
     private fun buildProjectTab(): JComponent =
         JPanel(BorderLayout(JBUI.scale(12), JBUI.scale(12))).apply {
             border = cardBorder()
-            add(buildProjectSummaryStrip(), BorderLayout.NORTH)
+            add(
+                JPanel(BorderLayout(0, JBUI.scale(10))).apply {
+                    border = JBUI.Borders.empty(14, 16, 8, 16)
+                    add(buildProjectSummaryStrip(), BorderLayout.NORTH)
+                    add(buildProjectStatusStrip(), BorderLayout.SOUTH)
+                },
+                BorderLayout.NORTH,
+            )
             add(
                 JSplitPane(
                     JSplitPane.HORIZONTAL_SPLIT,
@@ -442,20 +428,20 @@ private class FocusedComplexityRadarToolWindowPanel(
         }
 
     private fun buildProjectSummaryStrip(): JComponent =
-        JPanel(GridLayout(1, 3, JBUI.scale(8), 0)).apply {
-            border = JBUI.Borders.empty(14, 16, 8, 16)
-            add(summaryCard("Files", projectFilesValue, "analyzed now"))
-            add(summaryCard("Avg Poop", projectAvgPoopValue, "project smell"))
-            add(summaryCard("Red Files", projectRedValue, "critical now"))
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+            isOpaque = false
+            add(projectSummaryStripLabel)
         }
 
     private fun buildProjectOverviewCard(): JComponent =
         JPanel(BorderLayout()).apply {
             border = cardBorder()
             add(
-                JLabel("Project Snapshot").apply {
-                    font = font.deriveFont(Font.BOLD)
-                    border = JBUI.Borders.empty(10, 12, 0, 12)
+                JPanel(BorderLayout()).apply {
+                    border = JBUI.Borders.empty(10, 12, 4, 12)
+                    isOpaque = false
+                    add(sectionHeaderPill("Project Pressure"), BorderLayout.WEST)
+                    add(subtleCaptionLabel("Global smell map"), BorderLayout.SOUTH)
                 },
                 BorderLayout.NORTH,
             )
@@ -466,38 +452,38 @@ private class FocusedComplexityRadarToolWindowPanel(
                         JPanel().apply {
                             layout = BoxLayout(this, BoxLayout.Y_AXIS)
                             isOpaque = false
-                            add(buildProjectStatusBar())
+                            add(projectPressureLabel.apply { alignmentX = Component.LEFT_ALIGNMENT })
+                            add(verticalGap(6))
                             add(projectRadarPanel)
                         },
-                        BorderLayout.NORTH,
+                        BorderLayout.CENTER,
                     )
-                    configureHtmlPane(projectNotesPane)
-                    add(JBScrollPane(projectNotesPane), BorderLayout.CENTER)
                 },
                 BorderLayout.CENTER,
             )
         }
 
-    private fun buildProjectStatusBar(): JComponent =
+    private fun buildProjectStatusStrip(): JComponent =
         JPanel(BorderLayout(JBUI.scale(8), 0)).apply {
             border =
                 BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(JBColor(Color(0xE5D7C3), Color(0x43372A))),
-                    JBUI.Borders.empty(8, 10),
+                    JBUI.Borders.empty(6, 10),
                 )
             background = JBColor(Color(0xFAF5EE), Color(0x231D18))
             isOpaque = true
-            add(projectStatusLabel, BorderLayout.NORTH)
-            add(projectStatusProgress, BorderLayout.SOUTH)
+            add(projectStatusLabel, BorderLayout.WEST)
+            add(projectStatusProgress, BorderLayout.CENTER)
         }
 
     private fun buildTopFilesCard(): JComponent =
         JPanel(BorderLayout()).apply {
             border = cardBorder()
             add(
-                JLabel("Worst Files").apply {
-                    font = font.deriveFont(Font.BOLD)
+                JPanel(BorderLayout()).apply {
                     border = JBUI.Borders.empty(10, 12, 6, 12)
+                    isOpaque = false
+                    add(sectionHeaderPill("Fix First"), BorderLayout.WEST)
                 },
                 BorderLayout.NORTH,
             )
@@ -506,14 +492,13 @@ private class FocusedComplexityRadarToolWindowPanel(
         }
 
     private fun configureCurrentPane() {
-        configureHtmlPane(currentDetailsPane)
-        configureHtmlPane(projectNotesPane)
+        renderCurrentDetailPanels(null)
     }
 
     private fun configureTopFilesList() {
         topFilesList.selectionMode = ListSelectionModel.SINGLE_SELECTION
         topFilesList.visibleRowCount = -1
-        topFilesList.fixedCellHeight = JBUI.scale(82)
+        topFilesList.fixedCellHeight = JBUI.scale(68)
         topFilesList.cellRenderer = TopFileRenderer()
         topFilesList.addMouseListener(
             object : MouseAdapter() {
@@ -638,7 +623,7 @@ private class FocusedComplexityRadarToolWindowPanel(
     ) {
         projectStatusMessage = message
         projectStatusDetails = details
-        projectNotesPane.text = projectStatusHtml(message, details)
+        renderProjectSummaryPanel(lastProjectSnapshot)
     }
 
     private fun updateProjectProgress(
@@ -723,6 +708,18 @@ private class FocusedComplexityRadarToolWindowPanel(
         }
     }
 
+    private fun gutterButtonLabel(): String {
+        val on = service.uiSettings().showGutterIcons
+        return if (on) "Hide Gutter Icons" else "Show Gutter Icons"
+    }
+
+    private fun onToggleGutter() {
+        val uiSettings = project.getService(com.sqb.complexityradar.settings.ComplexityUiSettingsService::class.java)
+        uiSettings.update { it.showGutterIcons = !it.showGutterIcons }
+        toggleGutterButton.text = gutterButtonLabel()
+        com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
+    }
+
     private fun updateLoadingUi() {
         val visible =
             when {
@@ -738,101 +735,128 @@ private class FocusedComplexityRadarToolWindowPanel(
         exportButton.isEnabled = !isAnalyzeProjectRunning
     }
 
-    private fun renderCurrentFileHtml(result: ComplexityResult): String {
-        val factors =
-            result.contributions.take(3).joinToString("<br/>") {
-                "<b>${html(it.type.displayName)}</b>: ${html(it.explanation)}"
+    private fun renderProjectSummaryPanel(snapshot: FocusedViewSnapshot?) {
+        val items =
+            when {
+                snapshot == null || snapshot.projectResults.isEmpty() -> buildProjectEmptyItems()
+                else -> buildProjectSummaryItems(snapshot)
             }
-        val hotspots =
-            if (result.hotspots.isEmpty()) {
-                "No hotspot methods detected yet."
-            } else {
-                result.hotspots.take(3).joinToString("<br/>") {
-                    "<b>${html(it.methodName)}</b> @ line ${it.line} (${it.score})"
-                }
-            }
-        val recommendation = result.hotspots.firstOrNull()?.recommendation ?: "Split responsibilities and flatten deep nesting first."
-        return """
-            <html><body style='padding:8px;'>
-            <b>Why It Smells</b><br/>$factors
-            <br/><br/>
-            <b>Hotspots</b><br/>$hotspots
-            <br/><br/>
-            <b>Refactor Moves</b><br/>${html(recommendation)}
-            </body></html>
-        """.trimIndent()
+        setDetailItems(projectSummaryPanel, items)
     }
 
-    private fun renderProjectSummaryHtml(snapshot: FocusedViewSnapshot): String {
-        val statusBlock =
-            projectStatusMessage?.takeIf { it.isNotBlank() }?.let {
-                buildString {
-                    append("<b>Scan Status</b><br/>")
-                    append(html(it))
-                    projectStatusDetails?.takeIf { details -> details.isNotBlank() }?.let { details ->
-                        append("<br/><br/><pre style='white-space:pre-wrap;font-family:monospace;'>")
-                        append(html(details))
-                        append("</pre>")
-                    }
-                    append("<br/><br/>")
-                }
-            }.orEmpty()
-        if (snapshot.projectResults.isEmpty()) {
-            return if (statusBlock.isNotEmpty()) {
-                "<html><body style='padding:8px;'>$statusBlock</body></html>"
-            } else {
-                projectEmptyState()
-            }
-        }
-        val topFiles =
-            snapshot.topFiles.joinToString("<br/>") { result ->
-                "<b>${html(fileName(result.filePath))}</b>  ${poopCountForScore(result.score)}/5  (${result.score})"
-            }
-        return """
-            <html><body style='padding:8px;'>
-            $statusBlock
-            <b>What To Fix First</b><br/>${html(snapshot.projectSummary)}
-            <br/><br/>
-            <b>Top Targets</b><br/>$topFiles
-            </body></html>
-        """.trimIndent()
-    }
-
-    private fun currentEmptyState(): String =
-        "<html><body style='padding:8px;color:#8f96a3;'>Reanalyze this file to inspect it.</body></html>"
-
-    private fun projectEmptyState(): String =
-        "<html><body style='padding:8px;color:#8f96a3;'>Analyze Project to build a global view.</body></html>"
-
-    private fun projectStatusHtml(
-        message: String,
-        details: String? = null,
-    ): String =
-        buildString {
-            append("<html><body style='padding:8px;'><b>Scan Status</b><br/>")
-            append(html(message))
-            details?.takeIf { it.isNotBlank() }?.let {
-                append("<br/><br/><pre style='white-space:pre-wrap;font-family:monospace;'>")
-                append(html(it))
-                append("</pre>")
-            }
-            append("</body></html>")
-        }
-
-    private fun configureHtmlPane(pane: JEditorPane) {
-        pane.isEditable = false
-        pane.isOpaque = false
-        pane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
-        pane.border = JBUI.Borders.empty(0, 0, 0, 0)
-    }
-
-    private fun actionButton(
+    private fun primaryActionButton(
         text: String,
         action: () -> Unit,
     ): JButton =
         JButton(text).apply {
+            isOpaque = true
+            background = JBColor(Color(0xE8D1B3), Color(0x3A2D20))
+            foreground = JBColor(Color(0x352414), Color(0xF3E5D6))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xC8A47C), Color(0x6B543D))),
+                    JBUI.Borders.empty(6, 12),
+                )
+            font = font.deriveFont(Font.BOLD)
             addActionListener { action() }
         }
+
+    private fun subtleActionButton(
+        text: String,
+        action: () -> Unit,
+    ): JButton =
+        JButton(text).apply {
+            isOpaque = true
+            background = JBColor(Color(0xFAF6F0), Color(0x201B16))
+            foreground = JBColor(Color(0x5E4C3A), Color(0xCDB79D))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xE2D4C4), Color(0x4B3B2C))),
+                    JBUI.Borders.empty(4, 10),
+                )
+            font = font.deriveFont(font.size2D - 0.5f)
+            addActionListener { action() }
+        }
+
+    private fun buildCurrentSection(
+        title: String,
+        content: JPanel,
+    ): JComponent =
+        JPanel(BorderLayout()).apply {
+            border = cardBorder()
+            add(
+                JPanel(BorderLayout()).apply {
+                    border = JBUI.Borders.empty(10, 12, 0, 12)
+                    isOpaque = false
+                    add(sectionHeaderPill(title), BorderLayout.WEST)
+                },
+                BorderLayout.NORTH,
+            )
+            add(
+                JPanel(BorderLayout()).apply {
+                    border = JBUI.Borders.empty(8, 12, 12, 12)
+                    isOpaque = false
+                    add(content, BorderLayout.NORTH)
+                },
+                BorderLayout.CENTER,
+            )
+        }
+
+    private fun buildCurrentHeader(): JComponent =
+        JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
+            border = JBUI.Borders.empty(14, 16, 10, 16)
+            add(
+                JPanel().apply {
+                    layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                    isOpaque = false
+                    add(currentTitleLabel)
+                    add(currentMetaLabel)
+                },
+                BorderLayout.WEST,
+            )
+            add(
+                JPanel().apply {
+                    layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                    isOpaque = false
+                    add(currentSummaryLabel.apply { alignmentX = Component.LEFT_ALIGNMENT })
+                },
+                BorderLayout.CENTER,
+            )
+            add(
+                JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
+                    isOpaque = false
+                    add(currentRefreshButton)
+                },
+                BorderLayout.EAST,
+            )
+        }
+
+    private fun buildCurrentAnalysisRow(): JComponent =
+        JSplitPane(
+            JSplitPane.HORIZONTAL_SPLIT,
+            JPanel(BorderLayout()).apply {
+                border = cardBorder()
+                add(
+                    JPanel().apply {
+                        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                        border = JBUI.Borders.empty(10, 10, 10, 10)
+                        isOpaque = false
+                        add(currentRadarPanel.apply { alignmentX = Component.LEFT_ALIGNMENT })
+                        add(verticalGap(6))
+                        add(currentMainFactorLabel.apply { alignmentX = Component.LEFT_ALIGNMENT })
+                    },
+                    BorderLayout.CENTER,
+                )
+            },
+            buildCurrentHotspotsCard(),
+        ).apply {
+            border = JBUI.Borders.empty(0, 16, 12, 16)
+            resizeWeight = 0.52
+            dividerSize = JBUI.scale(8)
+        }
+
+    private fun buildCurrentHotspotsCard(): JComponent =
+        buildCurrentSection("Hotspots", currentHotspotsPanel)
 
     private fun summaryCard(
         title: String,
@@ -862,11 +886,101 @@ private class FocusedComplexityRadarToolWindowPanel(
                 },
                 BorderLayout.SOUTH,
             )
+        }.apply {
+            preferredSize = Dimension(JBUI.scale(170), JBUI.scale(92))
+        }
+
+    private fun primarySummaryCard(
+        title: String,
+        valueLabel: JLabel,
+        caption: String,
+    ): JComponent =
+        JPanel(BorderLayout()).apply {
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xD8C0A1), Color(0x5A4630))),
+                    JBUI.Borders.empty(0),
+                )
+            background = JBColor(Color(0xFBF3E8), Color(0x251F19))
+            isOpaque = true
+            add(
+                JLabel(title).apply {
+                    foreground = poopAccentColor(Severity.ORANGE)
+                    font = font.deriveFont(Font.BOLD, font.size2D + 0.5f)
+                    border = JBUI.Borders.empty(10, 12, 0, 12)
+                },
+                BorderLayout.NORTH,
+            )
+            add(
+                JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    border = JBUI.Borders.empty(0, 12, 0, 12)
+                    add(valueLabel.apply { font = font.deriveFont(Font.BOLD, font.size2D + 10f) }, BorderLayout.CENTER)
+                },
+                BorderLayout.CENTER,
+            )
+            add(
+                JLabel(caption).apply {
+                    foreground = secondaryTextColor()
+                    font = font.deriveFont(font.size2D - 0.5f)
+                    border = JBUI.Borders.empty(0, 12, 10, 12)
+                },
+                BorderLayout.SOUTH,
+            )
+            preferredSize = Dimension(JBUI.scale(240), JBUI.scale(104))
         }
 
     private fun summaryValueLabel(text: String): JLabel =
         JLabel(text).apply {
             font = font.deriveFont(Font.BOLD, font.size2D + 7f)
+        }
+
+    private fun detailListPanel(): JPanel =
+        JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+        }
+
+    private fun sectionHeaderPill(text: String): JComponent =
+        JPanel(BorderLayout()).apply {
+            isOpaque = true
+            background = JBColor(Color(0xF5E8D5), Color(0x2A221A))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xDEC2A0), Color(0x57442E))),
+                    JBUI.Borders.empty(4, 10),
+                )
+            add(
+                JLabel(text).apply {
+                    font = font.deriveFont(Font.BOLD)
+                    foreground = poopAccentColor(Severity.ORANGE)
+                },
+                BorderLayout.CENTER,
+            )
+        }
+
+    private fun subtleCaptionLabel(text: String): JComponent =
+        JLabel(text).apply {
+            foreground = secondaryTextColor()
+            font = font.deriveFont(font.size2D - 1f)
+        }
+
+    private fun factorTag(text: String): JComponent =
+        JPanel(BorderLayout()).apply {
+            isOpaque = true
+            background = JBColor(Color(0xF5E8D5), Color(0x2A221A))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xDEC2A0), Color(0x57442E))),
+                    JBUI.Borders.empty(3, 8),
+                )
+            add(
+                JLabel(text).apply {
+                    foreground = poopAccentColor(Severity.ORANGE)
+                    font = font.deriveFont(Font.BOLD, font.size2D - 0.5f)
+                },
+                BorderLayout.CENTER,
+            )
         }
 
     private fun openResult(result: ComplexityResult) {
@@ -876,6 +990,157 @@ private class FocusedComplexityRadarToolWindowPanel(
 
     private fun currentEditorFileUrl(): String? = FileEditorManager.getInstance(project).selectedFiles.firstOrNull()?.url
 
+    private fun verticalGap(height: Int): JComponent =
+        JPanel().apply {
+            isOpaque = false
+            preferredSize = Dimension(0, JBUI.scale(height))
+            minimumSize = preferredSize
+            maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(height))
+        }
+
+    private fun renderCurrentDetailPanels(result: ComplexityResult?) {
+        if (result == null) {
+            setDetailItems(currentHotspotsPanel, listOf(detailBodyLabel("Hotspot methods will appear here after analysis.")))
+            return
+        }
+
+        val items = mutableListOf<JComponent>()
+        if (result.hotspots.isEmpty()) {
+            items += detailBodyLabel("No hotspot methods detected yet.")
+        } else {
+            result.hotspots.take(3).forEach { hotspot ->
+                items += detailItemLabel(
+                    hotspot.methodName,
+                    "Line ${hotspot.line}  \u2022  Score ${hotspot.score}",
+                )
+            }
+            items += detailBodyLabel("\u2192  ${result.hotspots.first().recommendation}")
+        }
+        setDetailItems(currentHotspotsPanel, items)
+    }
+
+    private fun renderCurrentPendingPanels() {
+        setDetailItems(currentHotspotsPanel, listOf(detailBodyLabel("Waiting for hotspot extraction...")))
+    }
+
+
+    private fun buildProjectEmptyItems(): List<JComponent> {
+        val items = mutableListOf<JComponent>()
+        val status = projectStatusMessage?.takeIf { it.isNotBlank() }
+        if (status != null) {
+            items += detailItemLabel("Latest Scan", status)
+        } else {
+            items += detailBodyLabel("Analyze Project to build a global smell map.")
+        }
+        projectStatusDetails?.takeIf { it.isNotBlank() }?.let { details ->
+            items += detailBodyLabel(details.replace("\n", "  "))
+        }
+        return items
+    }
+
+    private fun buildProjectSummaryItems(snapshot: FocusedViewSnapshot): List<JComponent> {
+        val avgRounded = snapshot.averageScore.roundToInt().coerceIn(0, 100)
+        val strongestFactors =
+            snapshot.aggregateValues.entries
+                .sortedByDescending { it.value }
+                .take(2)
+                .map { it.key.displayName }
+        val pressureLine =
+            when {
+                strongestFactors.isEmpty() -> "Pressure is currently balanced."
+                strongestFactors.size == 1 -> "Most pressure comes from ${strongestFactors.first()}."
+                else -> "Most pressure comes from ${strongestFactors[0]} and ${strongestFactors[1]}."
+            }
+        val items = mutableListOf<JComponent>()
+        items += detailItemLabel("What To Fix First", snapshot.projectSummary)
+        items += detailItemLabel("Pressure Snapshot", pressureLine)
+        items += detailItemLabel(
+            "Project Risk",
+            "Avg ${poopScoreCount(avgRounded)}/5 • Red ${snapshot.redCount} • Top ${min(3, snapshot.topFiles.size)}",
+        )
+        projectStatusMessage?.takeIf { it.isNotBlank() }?.let { status ->
+            items += detailItemLabel("Latest Scan", status)
+        }
+        return items
+    }
+
+    private fun setDetailItems(
+        container: JPanel,
+        items: List<JComponent>,
+    ) {
+        container.removeAll()
+        items.forEachIndexed { index, component ->
+            if (index > 0) {
+                container.add(verticalGap(8))
+            }
+            container.add(component)
+        }
+        container.revalidate()
+        container.repaint()
+    }
+
+    private fun detailItemLabel(
+        title: String,
+        body: String,
+    ): JComponent =
+        JPanel(BorderLayout()).apply {
+            isOpaque = true
+            background = JBColor(Color(0xF8F1E7), Color(0x231D18))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xE4D4BE), Color(0x4A3B2B))),
+                    JBUI.Borders.empty(8, 10),
+                )
+            add(
+                JPanel().apply {
+                    layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                    isOpaque = false
+                    add(
+                        JLabel(title).apply {
+                            font = font.deriveFont(Font.BOLD)
+                            foreground = JBColor(Color(0x2F3742), Color(0xE7EBF0))
+                            alignmentX = Component.LEFT_ALIGNMENT
+                        },
+                    )
+                    add(verticalGap(4))
+                    add(
+                        JLabel("<html>${html(body)}</html>").apply {
+                            foreground = secondaryTextColor()
+                            alignmentX = Component.LEFT_ALIGNMENT
+                        },
+                    )
+                },
+                BorderLayout.CENTER,
+            )
+        }
+
+    private fun detailBodyLabel(text: String): JComponent =
+        JPanel(BorderLayout()).apply {
+            isOpaque = true
+            background = JBColor(Color(0xF8F4ED), Color(0x1F1A16))
+            border =
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0xE8DDD0), Color(0x41362C))),
+                    JBUI.Borders.empty(8, 10),
+                )
+            add(
+                JLabel("<html>${html(text)}</html>").apply {
+                    foreground = secondaryTextColor()
+                    alignmentX = Component.LEFT_ALIGNMENT
+                },
+                BorderLayout.CENTER,
+            )
+        }
+
+    private fun leadingFactors(result: ComplexityResult): String {
+        val names = result.contributions.take(2).map { it.type.displayName }
+        return when {
+            names.isEmpty() -> "A stable profile right now"
+            names.size == 1 -> "Mostly driven by ${names.first()}"
+            else -> "Mostly driven by ${names[0]} and ${names[1]}"
+        }
+    }
+
     private fun relativePath(filePath: String): String {
         val basePath = project.basePath?.replace('\\', '/')?.trimEnd('/') ?: return filePath.replace('\\', '/')
         val normalized = filePath.replace('\\', '/')
@@ -884,6 +1149,18 @@ private class FocusedComplexityRadarToolWindowPanel(
     }
 
     private fun fileName(filePath: String): String = filePath.substringAfterLast('/', filePath)
+
+    private fun shortenMiddle(
+        value: String,
+        maxLength: Int,
+    ): String {
+        if (value.length <= maxLength) {
+            return value
+        }
+        val head = (maxLength / 2) - 2
+        val tail = maxLength - head - 3
+        return value.take(head) + "..." + value.takeLast(tail)
+    }
 
     private fun html(value: String): String =
         value
@@ -913,10 +1190,16 @@ private class FocusedComplexityRadarToolWindowPanel(
                     border =
                         BorderFactory.createCompoundBorder(
                             BorderFactory.createMatteBorder(0, JBUI.scale(4), 0, 0, severityColor(result.severity)),
-                            JBUI.Borders.empty(8, 10),
+                            JBUI.Borders.empty(6, 10),
                         )
                     background = if (isSelected) list.selectionBackground else list.background
                     toolTipText = buildPoopTooltip(result.score)
+                }
+            val rankLabel =
+                JLabel("#${index + 1}", SwingConstants.CENTER).apply {
+                    foreground = if (isSelected) list.selectionForeground else poopAccentColor(Severity.ORANGE)
+                    font = font.deriveFont(Font.BOLD, font.size2D + 1f)
+                    border = JBUI.Borders.emptyRight(6)
                 }
             val textPanel =
                 JPanel().apply {
@@ -930,24 +1213,32 @@ private class FocusedComplexityRadarToolWindowPanel(
                 },
             )
             textPanel.add(
-                JLabel(relativePath(result.filePath)).apply {
+                JLabel(shortenMiddle(relativePath(result.filePath), 30)).apply {
                     foreground = if (isSelected) list.selectionForeground else secondaryTextColor()
                 },
             )
             val strip =
-                PoopRatingStrip(iconSize = 13, gap = 3).apply {
+                PoopRatingStrip(iconSize = 11, gap = 2).apply {
                     setScore(result.score, result.severity, isSelected)
                 }
+            root.add(rankLabel, BorderLayout.WEST)
             root.add(textPanel, BorderLayout.CENTER)
             root.add(
-                JPanel(BorderLayout()).apply {
+                JPanel(FlowLayout(FlowLayout.RIGHT, JBUI.scale(6), 0)).apply {
                     isOpaque = false
-                    add(strip, BorderLayout.NORTH)
+                    add(strip)
                     add(
-                        JLabel("${result.score}", SwingConstants.CENTER).apply {
+                        JLabel("${poopScoreCount(result.score)}/5").apply {
                             foreground = if (isSelected) list.selectionForeground else secondaryTextColor()
+                            font = font.deriveFont(Font.BOLD, font.size2D - 0.5f)
+                            border =
+                                BorderFactory.createCompoundBorder(
+                                    BorderFactory.createLineBorder(
+                                        if (isSelected) list.selectionForeground else JBColor(Color(0xD8C8B6), Color(0x4F4133)),
+                                    ),
+                                    JBUI.Borders.empty(2, 6),
+                                )
                         },
-                        BorderLayout.SOUTH,
                     )
                 },
                 BorderLayout.EAST,
@@ -970,362 +1261,3 @@ private data class FocusedViewSnapshot(
     val targetFilePath: String?,
 )
 
-private class LoadingOverlayPanel : JPanel(BorderLayout()) {
-    private val label =
-        JLabel("Loading...", SwingConstants.CENTER).apply {
-            font = font.deriveFont(Font.BOLD, font.size2D + 1f)
-            foreground = JBColor(Color(0xF4F6F8), Color(0xE6E9ED))
-            border = JBUI.Borders.empty(12, 18, 6, 18)
-            horizontalAlignment = SwingConstants.CENTER
-        }
-    private val progressBar =
-        JProgressBar().apply {
-            isBorderPainted = false
-            isStringPainted = true
-            foreground = JBColor(Color(0xB58B57), Color(0xD0A873))
-            background = JBColor(Color(0x58606B), Color(0x3A4048))
-            preferredSize = Dimension(JBUI.scale(220), JBUI.scale(10))
-        }
-
-    init {
-        isOpaque = false
-        isVisible = false
-        add(
-            JPanel(BorderLayout()).apply {
-                isOpaque = false
-                add(
-                    JPanel().apply {
-                        layout = BoxLayout(this, BoxLayout.Y_AXIS)
-                        isOpaque = false
-                        add(label)
-                        add(progressBar)
-                    },
-                    BorderLayout.CENTER,
-                )
-            },
-            BorderLayout.CENTER,
-        )
-        showIndeterminate("Loading...")
-    }
-
-    fun showIndeterminate(message: String) {
-        label.text = message
-        progressBar.isIndeterminate = true
-        progressBar.isStringPainted = false
-    }
-
-    fun showProgress(
-        message: String,
-        processed: Int,
-        total: Int,
-    ) {
-        label.text = message
-        if (total <= 0) {
-            progressBar.isIndeterminate = true
-            progressBar.isStringPainted = false
-            return
-        }
-        progressBar.isIndeterminate = false
-        progressBar.isStringPainted = true
-        progressBar.minimum = 0
-        progressBar.maximum = total
-        progressBar.value = processed.coerceIn(0, total)
-        progressBar.string = "$processed / $total"
-    }
-
-    override fun paintComponent(graphics: Graphics) {
-        super.paintComponent(graphics)
-        val g2 = graphics.create() as Graphics2D
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        g2.color = JBColor(Color(20, 24, 31, 165), Color(12, 14, 18, 185))
-        g2.fillRect(0, 0, width, height)
-
-        val boxWidth = minOf(width - JBUI.scale(40), JBUI.scale(260)).coerceAtLeast(JBUI.scale(180))
-        val boxHeight = JBUI.scale(84)
-        val x = ((width - boxWidth) / 2).coerceAtLeast(JBUI.scale(12))
-        val y = ((height - boxHeight) / 2).coerceAtLeast(JBUI.scale(12))
-        g2.color = JBColor(Color(0x2F353E), Color(0x23272D))
-        g2.fillRoundRect(x, y, boxWidth, boxHeight, JBUI.scale(18), JBUI.scale(18))
-        g2.color = JBColor(Color(0x4A5462), Color(0x3A414B))
-        g2.drawRoundRect(x, y, boxWidth, boxHeight, JBUI.scale(18), JBUI.scale(18))
-        g2.dispose()
-    }
-}
-
-private class RadarChartPanel : JPanel() {
-    private var result: ComplexityResult? = null
-    private var aggregateValues: Map<FactorType, Double>? = null
-    private var aggregateSeverity: Severity = Severity.GREEN
-
-    init {
-        preferredSize = Dimension(JBUI.scale(240), JBUI.scale(220))
-        minimumSize = preferredSize
-        isOpaque = false
-    }
-
-    fun setResult(value: ComplexityResult?) {
-        result = value
-        aggregateValues = null
-        repaint()
-    }
-
-    fun setAggregate(
-        values: Map<FactorType, Double>,
-        severity: Severity,
-    ) {
-        result = null
-        aggregateValues = values
-        aggregateSeverity = severity
-        repaint()
-    }
-
-    override fun paintComponent(graphics: Graphics) {
-        super.paintComponent(graphics)
-        val g2 = graphics.create() as Graphics2D
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-        val centerX = width / 2
-        val centerY = height / 2 + JBUI.scale(8)
-        val radius = min(width, height) / 2 - JBUI.scale(34)
-        if (radius <= 0) {
-            g2.dispose()
-            return
-        }
-
-        val factors = FactorType.entries
-        val levels = listOf(0.25, 0.5, 0.75, 1.0)
-
-        g2.color = JBColor(Color(0xDFE5ED), Color(0x3B4250))
-        levels.forEach { level ->
-            val polygon = buildPolygon(centerX, centerY, radius * level, factors.size) { level }
-            g2.drawPolygon(polygon)
-        }
-
-        factors.forEachIndexed { index, factor ->
-            val angle = angleFor(index, factors.size)
-            val endX = centerX + (cos(angle) * radius).toInt()
-            val endY = centerY + (sin(angle) * radius).toInt()
-            g2.drawLine(centerX, centerY, endX, endY)
-
-            val labelX = centerX + (cos(angle) * (radius + JBUI.scale(18))).toInt()
-            val labelY = centerY + (sin(angle) * (radius + JBUI.scale(18))).toInt()
-            g2.color = JBColor(Color(0x55606D), Color(0xA5ADB8))
-            val label = labelFor(factor)
-            val labelWidth = g2.fontMetrics.stringWidth(label)
-            g2.drawString(label, labelX - labelWidth / 2, labelY)
-            g2.color = JBColor(Color(0xDFE5ED), Color(0x3B4250))
-        }
-
-        val polygonValues =
-            result?.contributions?.associate { it.type to it.normalized }
-                ?: aggregateValues
-        val polygonSeverity =
-            result?.severity
-                ?: aggregateSeverity
-        polygonValues?.let { values ->
-            val polygon =
-                buildPolygon(centerX, centerY, radius.toDouble(), factors.size) { factorIndex ->
-                    values[factors[factorIndex]] ?: 0.0
-                }
-            val fill = severityColor(polygonSeverity, 80)
-            val stroke = severityColor(polygonSeverity)
-            g2.color = fill
-            g2.fillPolygon(polygon)
-            g2.color = stroke
-            g2.stroke = BasicStroke(JBUI.scale(2).toFloat())
-            g2.drawPolygon(polygon)
-        }
-
-        g2.dispose()
-    }
-
-    private fun buildPolygon(
-        centerX: Int,
-        centerY: Int,
-        radius: Double,
-        size: Int,
-        valueProvider: (Int) -> Double,
-    ): Polygon {
-        val polygon = Polygon()
-        repeat(size) { index ->
-            val angle = angleFor(index, size)
-            val scale = valueProvider(index).coerceIn(0.0, 1.0)
-            val pointRadius = radius * scale
-            polygon.addPoint(
-                centerX + (cos(angle) * pointRadius).toInt(),
-                centerY + (sin(angle) * pointRadius).toInt(),
-            )
-        }
-        return polygon
-    }
-
-    private fun angleFor(
-        index: Int,
-        size: Int,
-    ): Double = -Math.PI / 2 + 2.0 * Math.PI * index / size
-
-    private fun labelFor(factor: FactorType): String =
-        when (factor) {
-            FactorType.SIZE -> "Size"
-            FactorType.CONTROL_FLOW -> "Flow"
-            FactorType.NESTING -> "Nest"
-            FactorType.DOMAIN_COUPLING -> "Domain"
-            FactorType.READABILITY -> "Read"
-        }
-}
-
-private class PoopRatingStrip(
-    iconSize: Int,
-    gap: Int,
-) : JComponent() {
-    private val scaledIconSize = JBUI.scale(iconSize)
-    private val scaledGap = JBUI.scale(gap)
-
-    private var activeCount = 0
-    private var severity = Severity.GREEN
-    private var selected = false
-
-    init {
-        isOpaque = false
-        preferredSize = Dimension((scaledIconSize * 5) + (scaledGap * 4), scaledIconSize + JBUI.scale(6))
-        minimumSize = preferredSize
-    }
-
-    fun setScore(
-        score: Int,
-        severity: Severity,
-        selected: Boolean = false,
-    ) {
-        activeCount = poopCountForScore(score)
-        this.severity = severity
-        this.selected = selected
-        toolTipText = buildPoopTooltip(score)
-        repaint()
-    }
-
-    override fun paintComponent(graphics: Graphics) {
-        super.paintComponent(graphics)
-        val g2 = graphics.create() as Graphics2D
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-        val iconHeight = scaledIconSize + JBUI.scale(2)
-        var x = 0
-        val y = ((height - iconHeight) / 2).coerceAtLeast(0)
-        repeat(5) { index ->
-            val active = index < activeCount
-            val accent = poopAccentColor(severity)
-            val fill =
-                if (active) {
-                    Color(accent.red, accent.green, accent.blue, if (selected) 220 else 255)
-                } else {
-                    poopMutedColor()
-                }
-            val outline =
-                if (active) {
-                    accent.darker()
-                } else {
-                    poopMutedColor().darker()
-                }
-            drawPoopIcon(g2, x, y, scaledIconSize, fill, outline)
-            x += scaledIconSize + scaledGap
-        }
-        g2.dispose()
-    }
-}
-
-private fun drawPoopIcon(
-    graphics: Graphics2D,
-    x: Int,
-    y: Int,
-    size: Int,
-    fill: Color,
-    outline: Color,
-) {
-    val baseWidth = (size * 0.78).toInt()
-    val baseHeight = (size * 0.28).toInt()
-    val middleWidth = (size * 0.62).toInt()
-    val middleHeight = (size * 0.24).toInt()
-    val topWidth = (size * 0.44).toInt()
-    val topHeight = (size * 0.19).toInt()
-    val dripWidth = (size * 0.15).toInt().coerceAtLeast(2)
-    val dripHeight = (size * 0.23).toInt().coerceAtLeast(3)
-    val tipHalfWidth = (size * 0.08).toInt().coerceAtLeast(1)
-
-    val baseX = x + (size - baseWidth) / 2
-    val baseY = y + (size * 0.58).toInt()
-    val middleX = x + (size - middleWidth) / 2 - JBUI.scale(1)
-    val middleY = y + (size * 0.36).toInt()
-    val topX = x + (size - topWidth) / 2 + JBUI.scale(1)
-    val topY = y + (size * 0.18).toInt()
-    val tipX = topX + topWidth / 2 + JBUI.scale(1)
-    val tipTop = y + JBUI.scale(1)
-    val dripX = baseX + (baseWidth * 0.64).toInt()
-    val dripY = baseY + baseHeight - JBUI.scale(2)
-
-    fun fillBody() {
-        graphics.fillRoundRect(baseX, baseY, baseWidth, baseHeight, baseHeight, baseHeight)
-        graphics.fillOval(baseX - JBUI.scale(2), baseY + baseHeight / 3, baseHeight / 2, baseHeight / 2)
-        graphics.fillOval(baseX + baseWidth - baseHeight / 3, baseY + baseHeight / 4, baseHeight / 2, baseHeight / 2)
-        graphics.fillRoundRect(middleX, middleY, middleWidth, middleHeight, middleHeight, middleHeight)
-        graphics.fillRoundRect(topX, topY, topWidth, topHeight, topHeight, topHeight)
-        graphics.fillOval(dripX, dripY, dripWidth, dripHeight)
-        graphics.fillPolygon(
-            intArrayOf(tipX - tipHalfWidth, tipX, tipX + tipHalfWidth),
-            intArrayOf(topY + topHeight / 3, tipTop, topY + topHeight / 3 + JBUI.scale(1)),
-            3,
-        )
-    }
-
-    graphics.color = fill
-    fillBody()
-
-    graphics.color = Color(255, 255, 255, 30)
-    graphics.fillOval(topX + JBUI.scale(2), topY + JBUI.scale(2), (topWidth * 0.28).toInt().coerceAtLeast(2), (topHeight * 0.35).toInt().coerceAtLeast(2))
-
-    graphics.color = outline
-    graphics.stroke = BasicStroke(JBUI.scale(1).toFloat())
-    graphics.drawRoundRect(baseX, baseY, baseWidth, baseHeight, baseHeight, baseHeight)
-    graphics.drawOval(baseX - JBUI.scale(2), baseY + baseHeight / 3, baseHeight / 2, baseHeight / 2)
-    graphics.drawOval(baseX + baseWidth - baseHeight / 3, baseY + baseHeight / 4, baseHeight / 2, baseHeight / 2)
-    graphics.drawRoundRect(middleX, middleY, middleWidth, middleHeight, middleHeight, middleHeight)
-    graphics.drawRoundRect(topX, topY, topWidth, topHeight, topHeight, topHeight)
-    graphics.drawOval(dripX, dripY, dripWidth, dripHeight)
-    graphics.drawPolyline(
-        intArrayOf(tipX - tipHalfWidth, tipX, tipX + tipHalfWidth),
-        intArrayOf(topY + topHeight / 3, tipTop, topY + topHeight / 3 + JBUI.scale(1)),
-        3,
-    )
-}
-
-private fun poopCountForScore(score: Int): Int {
-    val clamped = score.coerceIn(0, 100)
-    return if (clamped == 0) {
-        0
-    } else {
-        ((clamped - 1) / 20) + 1
-    }
-}
-
-private fun severityForScore(score: Int): Severity =
-    when {
-        score > 75 -> Severity.RED
-        score > 50 -> Severity.ORANGE
-        score > 25 -> Severity.YELLOW
-        else -> Severity.GREEN
-    }
-
-private fun buildPoopTooltip(score: Int): String = "Poop ${poopCountForScore(score)}/5 | Raw $score/100"
-
-private fun severityColor(
-    severity: Severity,
-    alpha: Int = 255,
-): Color {
-    val base =
-        when (severity) {
-            Severity.GREEN -> JBColor(Color(0x49A55E), Color(0x78C27A))
-            Severity.YELLOW -> JBColor(Color(0xBF8B14), Color(0xE0B84B))
-            Severity.ORANGE -> JBColor(Color(0xD96E10), Color(0xF08A24))
-            Severity.RED -> JBColor(Color(0xCC4747), Color(0xF26D6D))
-        }
-    return Color(base.red, base.green, base.blue, alpha.coerceIn(0, 255))
-}

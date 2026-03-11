@@ -72,6 +72,34 @@ object AnalysisSupport {
     ): Int = current + nestingPenalty(depth)
 
     fun maxDocumentLine(document: Document?): Int = document?.lineCount ?: 0
+
+    fun resolveAndroidKind(superTypes: Set<String>): String? {
+        val joined = superTypes.joinToString(" ")
+        return when {
+            joined.contains("Activity") -> "Activity"
+            joined.contains("Fragment") -> "Fragment"
+            joined.contains("Application") -> "Application"
+            joined.contains("ContentProvider") -> "ContentProvider"
+            joined.contains("ViewModel") -> "ViewModel"
+            else -> null
+        }
+    }
+
+    fun computeControlFlow(
+        branchCount: Double,
+        simpleWhenBranchCount: Int = 0,
+        loopCount: Int,
+        tryCatchCount: Int,
+        ternaryCount: Int,
+        logicalOpCount: Int,
+        kotlinWhenSimpleWeight: Double = 0.25,
+    ): Double =
+        branchCount +
+            simpleWhenBranchCount * kotlinWhenSimpleWeight +
+            loopCount * 1.2 +
+            tryCatchCount * 1.0 +
+            ternaryCount * 0.7 +
+            logicalOpCount * 0.4
 }
 
 object DomainEvidenceCollector {
@@ -84,11 +112,8 @@ object DomainEvidenceCollector {
                 return@forEach
             }
             classify(value)?.let { tag ->
-                if (tags.add(tag)) {
-                    evidences += RuleEvidence(rule = "domain:${tag.name.lowercase()}", kind = "token", value = value)
-                } else {
-                    evidences += RuleEvidence(rule = "domain:${tag.name.lowercase()}", kind = "token", value = value)
-                }
+                tags.add(tag)
+                evidences += RuleEvidence(rule = "domain:${tag.name.lowercase()}", kind = "token", value = value)
             }
         }
         return DomainAnalysis(tags, evidences)

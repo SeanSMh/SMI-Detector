@@ -7,6 +7,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.sqb.complexityradar.core.model.ComplexityResult
 import com.sqb.complexityradar.core.model.ScoreDigest
+import com.sqb.complexityradar.core.model.toDigest
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -133,17 +134,7 @@ class ComplexityResultStore(
 
     private fun fileNameFor(fileUrl: String): String = "${sha256(fileUrl)}.json"
 
-    private fun digestFrom(result: ComplexityResult): ScoreDigest =
-        ScoreDigest(
-            score = result.score,
-            severity = result.severity,
-            mode = result.mode,
-            topContributions = result.contributions.take(3).map { "${it.type.displayName} ${(it.weightedScore * 100).toInt()}" },
-            effectiveLoc = result.effectiveLoc,
-            maxDepth = maxOf(result.maxBlockDepth, result.maxLambdaDepth),
-            domainCount = result.domainCount,
-            hotspotCount = result.hotspots.size,
-        )
+    private fun digestFrom(result: ComplexityResult): ScoreDigest = result.toDigest()
 
     private fun sha256(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())

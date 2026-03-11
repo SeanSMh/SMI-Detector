@@ -1,6 +1,7 @@
 package com.sqb.complexityradar.core.model
 
 import com.intellij.openapi.vfs.VirtualFile
+import kotlin.math.roundToInt
 
 enum class AnalyzeMode {
     FAST,
@@ -147,9 +148,13 @@ data class RadarConfig(
     fun severityFor(score: Int): Severity =
         thresholds.entries.firstOrNull { it.value.contains(score) }?.key ?: Severity.RED
 
+    private val compiledExclusions: List<Regex> by lazy {
+        exclusions.map { pattern -> globToRegex(pattern) }
+    }
+
     fun isExcluded(file: VirtualFile): Boolean {
         val path = file.path.replace('\\', '/')
-        return exclusions.any { pattern -> globMatch(pattern, path) }
+        return compiledExclusions.any { regex -> regex.matches(path) }
     }
 
     fun merge(other: RadarConfig): RadarConfig =
@@ -165,42 +170,44 @@ data class RadarConfig(
             hotspot = other.hotspot,
         )
 
-    private fun globMatch(pattern: String, path: String): Boolean {
-        val regex = buildString {
-            append('^')
-            var index = 0
-            while (index < pattern.length) {
-                val current = pattern[index]
-                when {
-                    current == '*' && index + 1 < pattern.length && pattern[index + 1] == '*' -> {
-                        append(".*")
-                        index += 2
-                    }
+    companion object {
+        fun globToRegex(pattern: String): Regex {
+            val regexStr = buildString {
+                append('^')
+                var index = 0
+                while (index < pattern.length) {
+                    val current = pattern[index]
+                    when {
+                        current == '*' && index + 1 < pattern.length && pattern[index + 1] == '*' -> {
+                            append(".*")
+                            index += 2
+                        }
 
-                    current == '*' -> {
-                        append("[^/]*")
-                        index += 1
-                    }
+                        current == '*' -> {
+                            append("[^/]*")
+                            index += 1
+                        }
 
-                    current == '?' -> {
-                        append('.')
-                        index += 1
-                    }
+                        current == '?' -> {
+                            append('.')
+                            index += 1
+                        }
 
-                    current in setOf('.', '(', ')', '[', ']', '{', '}', '+', '^', '$', '|', '\\') -> {
-                        append('\\').append(current)
-                        index += 1
-                    }
+                        current in setOf('.', '(', ')', '[', ']', '{', '}', '+', '^', '$', '|', '\\') -> {
+                            append('\\').append(current)
+                            index += 1
+                        }
 
-                    else -> {
-                        append(current)
-                        index += 1
+                        else -> {
+                            append(current)
+                            index += 1
+                        }
                     }
                 }
+                append('$')
             }
-            append('$')
-        }.toRegex()
-        return regex.matches(path.replace('\\', '/'))
+            return regexStr.toRegex()
+        }
     }
 }
 
@@ -235,6 +242,17 @@ data class ScoreDigest(
     val hotspotCount: Int,
 )
 
+fun ComplexityResult.toDigest(): ScoreDigest =
+    ScoreDigest(
+        score = score,
+        severity = severity,
+        mode = mode,
+        topContributions = contributions.take(3).map { "${it.type.displayName} ${(it.weightedScore * 100).roundToInt()}" },
+        effectiveLoc = effectiveLoc,
+        maxDepth = maxOf(maxBlockDepth, maxLambdaDepth),
+        domainCount = domainCount,
+        hotspotCount = hotspots.size,
+    )
 data class UiSettingsState(
     var showProjectViewDecoration: Boolean = true,
     var showEditorBanner: Boolean = true,
