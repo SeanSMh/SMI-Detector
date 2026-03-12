@@ -6,7 +6,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
 import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
-import com.sqb.complexityradar.ide.ui.poopBadgeLabel
+import com.sqb.complexityradar.ide.ui.poopGlyphStrip
 import com.sqb.complexityradar.ide.ui.poopScoreCount
 import java.util.function.Function
 import javax.swing.JComponent
@@ -25,8 +25,8 @@ class ComplexityEditorNotificationProvider : EditorNotificationProvider {
         if (poopScoreCount(result.score) <= 1) return null
         return Function {
             val panel = EditorNotificationPanel()
-            val factors = result.contributions.take(3).joinToString("  ") { "${it.type.displayName} ${(it.weightedScore * 100).toInt()}" }
-            panel.text = "${poopBadgeLabel(result.score)}  Raw ${result.score} | ${result.severity.label} | $factors"
+            val count = poopScoreCount(result.score)
+            panel.text = "${poopGlyphStrip(result.score, showEmpty = false)} $count/5  Score ${result.score} · ${result.severity.label}"
             panel.createActionLabel("Open Radar") {
                 service.openRadarForCurrentFile()
             }
