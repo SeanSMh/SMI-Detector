@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 13 13">
+  <g fill="none" stroke="#6E6E6E" stroke-width="0.8">
+    <!-- base -->
+    <rect x="1.5" y="8.5" width="10" height="3.5" rx="1.75" fill="#A0A0A0"/>
+    <!-- middle -->
+    <rect x="2.5" y="5.5" width="8" height="3.5" rx="1.75" fill="#A0A0A0"/>
+    <!-- top -->
+    <rect x="4" y="2.5" width="5" height="3" rx="1.5" fill="#A0A0A0"/>
+    <!-- tip -->
+    <polygon points="6.5,0.5 7.5,2.5 5.5,2.5" fill="#A0A0A0"/>
+    <!-- drip -->
+    <ellipse cx="9" cy="11.5" rx="1" ry="1.2" fill="#A0A0A0"/>
+  </g>
+</svg>

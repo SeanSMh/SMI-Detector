@@ -31,7 +31,7 @@ class ComplexityProjectViewDecorator : ProjectViewNodeDecorator {
         val digest = service.getDigest(file) ?: return
         val poopCount = poopScoreCount(digest.score)
         val baseIcon = data.getIcon(false)
-        if (poopCount > 0 && baseIcon != null) {
+        if (poopCount > 1 && baseIcon != null) {
             data.setIcon(
                 ProjectViewPoopIcon(
                     poopCount = poopCount,

@@ -7,6 +7,7 @@ import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
 import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
 import com.sqb.complexityradar.ide.ui.poopBadgeLabel
+import com.sqb.complexityradar.ide.ui.poopScoreCount
 import java.util.function.Function
 import javax.swing.JComponent
 
@@ -21,6 +22,7 @@ class ComplexityEditorNotificationProvider : EditorNotificationProvider {
             return null
         }
         val result = service.getResult(file) ?: return null
+        if (poopScoreCount(result.score) <= 1) return null
         return Function {
             val panel = EditorNotificationPanel()
             val factors = result.contributions.take(3).joinToString("  ") { "${it.type.displayName} ${(it.weightedScore * 100).toInt()}" }

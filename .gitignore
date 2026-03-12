@@ -6,3 +6,4 @@ build/
 out/
 .idea/complexity-radar/
 !gradle/wrapper/gradle-wrapper.properties
+bin/

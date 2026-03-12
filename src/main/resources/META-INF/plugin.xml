@@ -13,6 +13,7 @@
         id="Complexity Radar"
         factoryClass="com.sqb.complexityradar.ide.toolwindow.ComplexityRadarToolWindowFactory"
         anchor="right"
+        icon="/META-INF/pluginIcon.svg"
         secondary="true"/>
     <projectViewNodeDecorator implementation="com.sqb.complexityradar.ide.projectview.ComplexityProjectViewDecorator"/>
     <editorNotificationProvider implementation="com.sqb.complexityradar.ide.editor.ComplexityEditorNotificationProvider"/>
