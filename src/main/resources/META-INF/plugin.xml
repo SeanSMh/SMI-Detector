@@ -10,7 +10,7 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <toolWindow
-        id="Complexity Radar"
+        id="SMI Detector"
         factoryClass="com.sqb.complexityradar.ide.toolwindow.ComplexityRadarToolWindowFactory"
         anchor="right"
         icon="/META-INF/pluginIcon.svg"

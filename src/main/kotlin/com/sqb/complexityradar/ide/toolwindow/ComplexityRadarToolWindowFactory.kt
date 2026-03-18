@@ -9,7 +9,7 @@ class ComplexityRadarToolWindowFactory : ToolWindowFactory {
         project: Project,
         toolWindow: ToolWindow,
     ) {
-        val panel = ComplexityRadarDashboardPanel(project)
+        val panel = SmiDashboardPanel(project)
         val content = toolWindow.contentManager.factory.createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
     }
