@@ -43,4 +43,16 @@ object UiThemeTokens {
     // Footer
     val footerBg = JBColor(Color(0xF5F5F5), Color(0x1E1F22))
     val footerBorder = JBColor(Color(0xD6D6D6), Color(0x393B40))
+
+    // Severity tiers (theme-invariant — matches SMI design palette)
+    val severityCritical = JBColor(Color(0x8B4513), Color(0x8B4513))
+    val severityWarning  = JBColor(Color(0xCD853F), Color(0xCD853F))
+    val severityGreen    = JBColor(Color(0x57965C), Color(0x57965C))
+
+    // Score card gradient endpoints
+    val gradientCritical = JBColor(Color(0x8B4513), Color(0x8B4513))
+    val gradientClean    = JBColor(Color(0x57965C), Color(0x57965C))
+
+    // Active tab underline
+    val tabUnderline     = JBColor(Color(0xA87B44), Color(0xA87B44))
 }

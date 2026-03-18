@@ -132,9 +132,9 @@ internal class RadarChartPanel : JPanel() {
     private fun labelFor(factor: FactorType): String =
         when (factor) {
             FactorType.SIZE -> "Size"
-            FactorType.CONTROL_FLOW -> "Flow"
-            FactorType.NESTING -> "Nest"
-            FactorType.DOMAIN_COUPLING -> "Domain"
-            FactorType.READABILITY -> "Read"
+            FactorType.CONTROL_FLOW -> "Complexity"
+            FactorType.NESTING -> "Nesting"
+            FactorType.DOMAIN_COUPLING -> "Duplication"
+            FactorType.READABILITY -> "Smells"
         }
 }
