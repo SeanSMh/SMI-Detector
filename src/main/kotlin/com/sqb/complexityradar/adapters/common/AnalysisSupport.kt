@@ -14,6 +14,10 @@ data class DomainAnalysis(
 )
 
 object AnalysisSupport {
+    private val TODO_REGEX = Regex("""\b(TODO|FIXME)\b""")
+    private val BANG_BANG_REGEX = Regex("""!!""")
+    private val MAGIC_NUMBER_REGEX = Regex("""(?<![\w.])-?\b\d+\b(?!\s*([:A-Za-z_]))""")
+
     fun effectiveLoc(text: String): Int =
         text
             .lineSequence()
@@ -26,13 +30,12 @@ object AnalysisSupport {
                     !line.startsWith("*/")
             }
 
-    fun countTodo(text: String): Int =
-        Regex("""\b(TODO|FIXME)\b""").findAll(text).count()
+    fun countTodo(text: String): Int = TODO_REGEX.findAll(text).count()
 
-    fun countBangBang(text: String): Int = Regex("""!!""").findAll(text).count()
+    fun countBangBang(text: String): Int = BANG_BANG_REGEX.findAll(text).count()
 
     fun countMagicNumbers(text: String): Int =
-        Regex("""(?<![\w.])-?\b\d+\b(?!\s*([:A-Za-z_]))""")
+        MAGIC_NUMBER_REGEX
             .findAll(text)
             .count { match ->
                 val value = match.value.toIntOrNull() ?: return@count false

@@ -15,6 +15,9 @@ import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Font
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.RenderingHints
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
@@ -25,6 +28,7 @@ import javax.swing.DefaultListModel
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
+import javax.swing.JSplitPane
 import javax.swing.ListSelectionModel
 
 internal class SmiIssuesPanel(
@@ -42,9 +46,9 @@ internal class SmiIssuesPanel(
 
     private val activeFilters = mutableSetOf(SeverityTier.CRITICAL, SeverityTier.WARNING, SeverityTier.INFO)
 
-    private val chipCritical = filterChip("🔥 Critical (0)", SeverityTier.CRITICAL, UiThemeTokens.severityCritical)
-    private val chipWarning  = filterChip("⚠ Warning (0)",  SeverityTier.WARNING,  UiThemeTokens.severityWarning)
-    private val chipInfo     = filterChip("ℹ Info (0)",      SeverityTier.INFO,     UiThemeTokens.accentPrimary)
+    private val chipCritical = FilterChip("🔥 Critical (0)", SeverityTier.CRITICAL, UiThemeTokens.severityCritical)
+    private val chipWarning  = FilterChip("⚠ Warning (0)",  SeverityTier.WARNING,  UiThemeTokens.severityWarning)
+    private val chipInfo     = FilterChip("ℹ Info (0)",      SeverityTier.INFO,     UiThemeTokens.accentPrimary)
 
     private val listModel = DefaultListModel<IssueItem>()
     private val issueList = JBList(listModel).apply {
@@ -52,6 +56,7 @@ internal class SmiIssuesPanel(
         visibleRowCount = -1
         cellRenderer = IssueRenderer()
     }
+    private val detailPanel = IssueDetailPanel()
 
     private var cachedResults: List<ComplexityResult> = emptyList()
     private var cachedScope: DashboardScope = DashboardScope.PROJECT
@@ -72,19 +77,40 @@ internal class SmiIssuesPanel(
             add(Box.createHorizontalGlue())
         }
 
+        issueList.addListSelectionListener {
+            if (it.valueIsAdjusting) return@addListSelectionListener
+            when (val item = issueList.selectedValue) {
+                is IssueItem.FileHeader -> detailPanel.showFile(item)
+                is IssueItem.HotspotRow -> detailPanel.showHotspot(item)
+                else -> detailPanel.showPlaceholder()
+            }
+        }
+
         issueList.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 val item = issueList.selectedValue ?: return
                 when (item) {
-                    is IssueItem.FileHeader  -> navigateToFile(item.result.fileUrl)
-                    is IssueItem.HotspotRow  -> navigateToLine(item.fileUrl, item.hotspot.line)
+                    is IssueItem.FileHeader -> navigateToFile(item.result.fileUrl)
+                    is IssueItem.HotspotRow -> navigateToLine(item.fileUrl, item.hotspot.line)
                     else -> Unit
                 }
             }
         })
 
-        add(filterRow, BorderLayout.NORTH)
-        add(JBScrollPane(issueList), BorderLayout.CENTER)
+        val listPane = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(filterRow, BorderLayout.NORTH)
+            add(JBScrollPane(issueList).apply { border = null }, BorderLayout.CENTER)
+        }
+
+        val splitPane = JSplitPane(JSplitPane.VERTICAL_SPLIT, listPane, detailPanel).apply {
+            isOpaque = false
+            border = null
+            dividerSize = JBUI.scale(4)
+            resizeWeight = 0.65
+        }
+
+        add(splitPane, BorderLayout.CENTER)
     }
 
     fun update(
@@ -95,6 +121,7 @@ internal class SmiIssuesPanel(
         cachedResults = results
         cachedScope   = scope
         cachedCurrent = currentResult
+        detailPanel.showPlaceholder()
         rebuildList()
     }
 
@@ -131,9 +158,9 @@ internal class SmiIssuesPanel(
             }
         }
 
-        chipCritical.text = "🔥 Critical ($criticalCount)"
-        chipWarning.text  = "⚠ Warning ($warningCount)"
-        chipInfo.text     = "ℹ Info ($infoCount)"
+        chipCritical.label = "🔥 Critical ($criticalCount)"
+        chipWarning.label  = "⚠ Warning ($warningCount)"
+        chipInfo.label     = "ℹ Info ($infoCount)"
 
         if (listModel.isEmpty) listModel.addElement(IssueItem.Empty)
     }
@@ -145,31 +172,51 @@ internal class SmiIssuesPanel(
         Severity.GREEN  -> SeverityTier.INFO
     }
 
-    private fun filterChip(initialText: String, tier: SeverityTier, color: Color): JLabel =
-        JLabel(initialText).apply {
-            isOpaque = true
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+    private fun withAlpha(c: Color, a: Int) = Color(c.red, c.green, c.blue, a)
+
+    private inner class FilterChip(
+        initialLabel: String,
+        private val tier: SeverityTier,
+        private val color: Color,
+    ) : JPanel(BorderLayout()) {
+        private val textLabel = JLabel(initialLabel).apply {
+            isOpaque = false
             font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
-            setChipActive(this, true, color)
+            foreground = color
+        }
+        private var active = true
+
+        var label: String
+            get() = textLabel.text
+            set(v) { textLabel.text = v }
+
+        init {
+            isOpaque = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            border = JBUI.Borders.empty(3, 8)
+            add(textLabel, BorderLayout.CENTER)
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
                     if (tier in activeFilters) activeFilters.remove(tier) else activeFilters.add(tier)
-                    setChipActive(this@apply, tier in activeFilters, color)
+                    active = tier in activeFilters
+                    repaint()
                     rebuildList()
                 }
             })
         }
 
-    private fun setChipActive(chip: JLabel, active: Boolean, color: Color) {
-        chip.background = withAlpha(color, if (active) 51 else 20)
-        chip.foreground = color
-        chip.border = BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(withAlpha(color, if (active) 180 else 60), 1, true),
-            JBUI.Borders.empty(3, 8),
-        )
+        override fun paintComponent(g: Graphics) {
+            val g2 = g.create() as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            val r = JBUI.scale(10)
+            g2.color = withAlpha(color, if (active) 60 else 25)
+            g2.fillRoundRect(0, 0, width, height, r, r)
+            g2.color = withAlpha(color, if (active) 180 else 75)
+            g2.drawRoundRect(0, 0, width - 1, height - 1, r, r)
+            g2.dispose()
+            super.paintComponent(g)
+        }
     }
-
-    private fun withAlpha(c: Color, a: Int) = Color(c.red, c.green, c.blue, a)
 
     private fun navigateToFile(url: String) {
         VirtualFileManager.getInstance().findFileByUrl(url)
@@ -255,14 +302,31 @@ internal class SmiIssuesPanel(
                 add(JLabel(msg).apply { foreground = UiThemeTokens.textSecondary }, BorderLayout.CENTER)
             }
 
-        private fun buildScoreBadge(score: Int, tier: SeverityTier): JLabel = JLabel(score.toString()).apply {
-            font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
-            foreground = tier.color()
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(withAlpha(tier.color(), 100), 1, true),
-                JBUI.Borders.empty(2, 7),
-            )
-            isOpaque = false
+        private fun buildScoreBadge(score: Int, tier: SeverityTier): JPanel {
+            val color = tier.color()
+            val label = JLabel(score.toString()).apply {
+                font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
+                foreground = color
+                isOpaque = false
+            }
+            return object : JPanel(BorderLayout()) {
+                init {
+                    isOpaque = false
+                    border = JBUI.Borders.empty(2, 7)
+                    add(label, BorderLayout.CENTER)
+                }
+                override fun paintComponent(g: Graphics) {
+                    super.paintComponent(g)
+                    val g2 = g.create() as Graphics2D
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                    val r = JBUI.scale(10)
+                    g2.color = withAlpha(color, 30)
+                    g2.fillRoundRect(0, 0, width, height, r, r)
+                    g2.color = withAlpha(color, 120)
+                    g2.drawRoundRect(0, 0, width - 1, height - 1, r, r)
+                    g2.dispose()
+                }
+            }
         }
 
         private fun SeverityTier.color(): Color = when (this) {
@@ -275,6 +339,152 @@ internal class SmiIssuesPanel(
             SeverityTier.CRITICAL -> "🔥"
             SeverityTier.WARNING  -> "⚠"
             SeverityTier.INFO     -> "ℹ"
+        }
+    }
+
+    private inner class IssueDetailPanel : JPanel(BorderLayout()) {
+        private val contentPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+        }
+
+        init {
+            isOpaque = false
+            border = BorderFactory.createMatteBorder(1, 0, 0, 0, UiThemeTokens.borderDefault)
+            add(JBScrollPane(contentPanel).apply {
+                border = null; isOpaque = false; viewport.isOpaque = false
+            }, BorderLayout.CENTER)
+            showPlaceholder()
+        }
+
+        fun showPlaceholder() = render {
+            add(placeholderLabel("Select an issue to view details"))
+        }
+
+        fun showHotspot(item: IssueItem.HotspotRow) = render {
+            val color = item.tier.color()
+            add(titleRow("${item.hotspot.methodName}  ·  L${item.hotspot.line}", color))
+            if (item.hotspot.recommendation.isNotBlank()) {
+                add(sectionLabel("Recommendation"))
+                add(bodyText(item.hotspot.recommendation))
+            }
+            if (item.hotspot.contributions.isNotEmpty()) {
+                add(sectionLabel("Contributing Factors"))
+                item.hotspot.contributions.take(3).forEach { c ->
+                    add(factorRow(c.type.displayName, c.explanation, (c.weightedScore * 100).toInt()))
+                }
+            }
+            add(Box.createVerticalGlue())
+        }
+
+        fun showFile(item: IssueItem.FileHeader) = render {
+            val color = item.result.severity.toTier().color()
+            add(titleRow(fileName(item.result.filePath), color))
+            if (item.result.contributions.isNotEmpty()) {
+                add(sectionLabel("Factor Breakdown"))
+                item.result.contributions.sortedByDescending { it.weightedScore }.take(4).forEach { c ->
+                    add(factorRow(c.type.displayName, c.explanation, (c.weightedScore * 100).toInt()))
+                }
+            }
+            val evidences = item.result.evidences.take(3)
+            if (evidences.isNotEmpty()) {
+                add(sectionLabel("Code Smells"))
+                evidences.forEach { e -> add(evidenceRow(e.rule, e.value)) }
+            }
+            add(Box.createVerticalGlue())
+        }
+
+        private fun render(block: JPanel.() -> Unit) {
+            contentPanel.removeAll()
+            contentPanel.block()
+            contentPanel.revalidate()
+            contentPanel.repaint()
+        }
+
+        private fun SeverityTier.color(): Color = when (this) {
+            SeverityTier.CRITICAL -> UiThemeTokens.severityCritical
+            SeverityTier.WARNING  -> UiThemeTokens.severityWarning
+            SeverityTier.INFO     -> UiThemeTokens.accentPrimary
+        }
+
+        private fun placeholderLabel(text: String) = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, JBUI.scale(36))
+            border = JBUI.Borders.empty(10, 12)
+            add(JLabel(text).apply { foreground = UiThemeTokens.textSecondary }, BorderLayout.CENTER)
+        }
+
+        private fun titleRow(text: String, color: Color) = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, JBUI.scale(36))
+            border = JBUI.Borders.empty(8, 12, 8, 12)
+            add(JLabel(text).apply {
+                font = font.deriveFont(Font.BOLD)
+                foreground = color
+            })
+            add(Box.createHorizontalGlue())
+        }
+
+        private fun sectionLabel(text: String) = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, JBUI.scale(24))
+            border = JBUI.Borders.empty(8, 12, 4, 12)
+            add(JLabel(text).apply {
+                font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.textSecondary
+            })
+            add(Box.createHorizontalGlue())
+        }
+
+        private fun bodyText(text: String) = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(2, 12, 4, 12)
+            add(JLabel("<html><body style='width:220px'>$text</body></html>").apply {
+                foreground = UiThemeTokens.textPrimary
+                font = font.deriveFont(font.size2D - 0.5f)
+            }, BorderLayout.CENTER)
+        }
+
+        private fun factorRow(factor: String, explanation: String, score: Int) = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, JBUI.scale(24))
+            border = JBUI.Borders.empty(2, 16, 2, 12)
+            add(JLabel("• $factor").apply {
+                font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.textPrimary
+                preferredSize = java.awt.Dimension(JBUI.scale(110), preferredSize.height)
+                minimumSize = preferredSize
+            })
+            add(JLabel(explanation).apply {
+                font = font.deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.textSecondary
+            })
+            add(Box.createHorizontalGlue())
+            add(JLabel("$score").apply {
+                font = font.deriveFont(Font.BOLD).deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.accentPrimary
+                border = JBUI.Borders.emptyLeft(8)
+            })
+        }
+
+        private fun evidenceRow(rule: String, value: String) = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, JBUI.scale(24))
+            border = JBUI.Borders.empty(2, 16, 2, 12)
+            add(JLabel("⚠ $rule").apply {
+                font = font.deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.textPrimary
+            })
+            add(Box.createHorizontalGlue())
+            add(JLabel(value).apply {
+                font = font.deriveFont(font.size2D - 1f)
+                foreground = UiThemeTokens.textSecondary
+                border = JBUI.Borders.emptyLeft(8)
+            })
         }
     }
 }

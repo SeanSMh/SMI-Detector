@@ -42,6 +42,7 @@ internal class SmiToolbarPanel(
         }
 
         override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
             val g2 = g.create() as Graphics2D
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val bg: Color = when {
@@ -54,11 +55,10 @@ internal class SmiToolbarPanel(
                 else      -> UiThemeTokens.btnPrimaryBg
             }
             g2.color = bg
-            g2.fillRoundRect(0, 0, width, height, JBUI.scale(20), JBUI.scale(20))
+            g2.fillRoundRect(0, 0, width, height, JBUI.scale(12), JBUI.scale(12))
             g2.color = UiThemeTokens.btnPrimaryBorder
-            g2.drawRoundRect(0, 0, width - 1, height - 1, JBUI.scale(20), JBUI.scale(20))
+            g2.drawRoundRect(0, 0, width - 1, height - 1, JBUI.scale(12), JBUI.scale(12))
             g2.dispose()
-            super.paintComponent(g)
         }
     }
 

@@ -1,10 +1,16 @@
 package com.sqb.complexityradar.ide.toolwindow
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -28,10 +34,10 @@ import kotlin.math.roundToInt
 
 internal class SmiDashboardPanel(
     private val project: Project,
-) : JPanel(BorderLayout()), RefreshableComplexityView {
+) : JPanel(BorderLayout()), RefreshableComplexityView, Disposable {
 
     private val service = ComplexityRadarProjectService.getInstance(project)
-    private val connection: MessageBusConnection = project.messageBus.connect(project)
+    private val connection: MessageBusConnection = project.messageBus.connect(this)
 
     private val headerPanel = SmiHeaderPanel(
         project = project,
@@ -103,6 +109,22 @@ internal class SmiDashboardPanel(
             onResultsUpdated(batch.fileUrls)
             scheduleRefreshView()
         })
+
+        connection.subscribe(
+            FileEditorManagerListener.FILE_EDITOR_MANAGER,
+            object : FileEditorManagerListener {
+                override fun selectionChanged(event: FileEditorManagerEvent) {
+                    scheduleRefreshView()
+                }
+            },
+        )
+    }
+
+    // ── Disposable ─────────────────────────────────────────────────────────────
+
+    override fun dispose() {
+        refreshDebounceTimer.stop()
+        connection.disconnect()
     }
 
     // ── RefreshableComplexityView ──────────────────────────────────────────────
@@ -292,9 +314,16 @@ internal class SmiDashboardPanel(
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private fun runExport() {
-        val path = service.exportReports()
+        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor().apply {
+            title = "Export Report To..."
+            description = "Choose folder to save complexity-radar-report"
+        }
+        val defaultVf = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+        val chosen = FileChooser.chooseFile(descriptor, project, defaultVf) ?: return
+        val outDir = java.nio.file.Path.of(chosen.path).resolve("complexity-radar-report")
+        val path = service.exportReports(outDir)
         if (path == null) Messages.showErrorDialog(project, "Failed to export report.", "SMI Detector")
-        else Messages.showInfoMessage(project, "Report exported to $path", "SMI Detector")
+        else Messages.showInfoMessage(project, "Report exported to:\n$path", "SMI Detector")
     }
 
     private fun gutterButtonLabel(): String =

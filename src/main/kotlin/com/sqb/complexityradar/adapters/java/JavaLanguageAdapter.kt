@@ -17,6 +17,7 @@ import com.intellij.psi.PsiSwitchStatement
 import com.intellij.psi.PsiTryStatement
 import com.intellij.psi.PsiWhileStatement
 import com.intellij.psi.util.PsiTreeUtil
+import com.sqb.complexityradar.adapters.FileAnalysis
 import com.sqb.complexityradar.adapters.LanguageAdapter
 import com.sqb.complexityradar.adapters.common.AnalysisSupport
 import com.sqb.complexityradar.adapters.common.AccurateSemanticSignalCollector
@@ -212,6 +213,37 @@ class JavaLanguageAdapter(
             superTypes = superTypes,
             classNames = classNames,
         )
+    }
+
+    override fun analyze(
+        file: PsiFile,
+        mode: AnalyzeMode,
+        config: RadarConfig,
+    ): FileAnalysis {
+        val summary = summarize(file, mode, config)
+        // Collect methods via a single lightweight traversal instead of PsiTreeUtil.findChildrenOfType
+        val methods = mutableListOf<PsiMethod>()
+        (file as PsiJavaFile).accept(object : JavaRecursiveElementVisitor() {
+            override fun visitMethod(method: PsiMethod) {
+                methods.add(method)
+                super.visitMethod(method)
+            }
+        })
+        val hotspots = methods
+            .map { method ->
+                val metrics = collectMethodMetrics(method)
+                scorer.scoreHotspot(
+                    methodName = method.name,
+                    line = AnalysisSupport.lineNumber(file, method.nameIdentifier ?: method),
+                    length = metrics.length,
+                    controlFlow = metrics.controlFlow,
+                    nestingPenalty = metrics.nestingPenalty,
+                    snippet = AnalysisSupport.snippet(method),
+                    config = config,
+                )
+            }.sortedByDescending { it.score }
+            .take(config.hotspot.maxHotspotsPerFile)
+        return FileAnalysis(summary, hotspots)
     }
 
     override fun hotspots(

@@ -11,9 +11,12 @@ class ExportService(
     fun exportAll(
         allResults: List<ComplexityResult>,
         changedResults: List<ComplexityResult>,
+        outputDir: Path? = null,
     ): Path? {
-        val base = projectBasePath ?: return null
-        val directory = Path.of(base).resolve("complexity-radar-report")
+        val directory = outputDir ?: run {
+            val base = projectBasePath ?: return null
+            Path.of(base).resolve("complexity-radar-report")
+        }
         Files.createDirectories(directory)
 
         val payload =

@@ -85,7 +85,8 @@ internal class LoadingOverlayPanel : JPanel(BorderLayout()) {
         g2.color = JBColor(Color(20, 24, 31, 165), Color(12, 14, 18, 185))
         g2.fillRect(0, 0, width, height)
 
-        val boxWidth = minOf(width - JBUI.scale(40), JBUI.scale(260)).coerceAtLeast(JBUI.scale(180))
+        val boxWidth = minOf(width - JBUI.scale(40), JBUI.scale(260))
+            .coerceAtLeast(minOf(JBUI.scale(180), width - JBUI.scale(20)))
         val boxHeight = JBUI.scale(84)
         val x = ((width - boxWidth) / 2).coerceAtLeast(JBUI.scale(12))
         val y = ((height - boxHeight) / 2).coerceAtLeast(JBUI.scale(12))

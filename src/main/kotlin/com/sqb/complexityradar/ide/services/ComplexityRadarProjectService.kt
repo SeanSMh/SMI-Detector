@@ -6,6 +6,8 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -66,6 +68,7 @@ class ComplexityRadarProjectService(
         }
         store.restoreFromDisk()
         registerVcsAwareListeners()
+        registerFileEditorListener()
         analyzeProject()
     }
 
@@ -120,8 +123,21 @@ class ComplexityRadarProjectService(
                     currentFile()?.let(::collect)
                 }
 
+                // Filter by config within the same ReadAction to batch all PSI/VFS reads
+                val scheduled = linkedMapOf<String, Pair<VirtualFile, AnalyzeMode>>()
+                var excludedByConfigCount = 0
+                collected.values.forEach { file ->
+                    val config = configService.getConfig(file)
+                    if (config.isExcluded(file)) {
+                        excludedByConfigCount += 1
+                    } else {
+                        scheduled.putIfAbsent(file.url, file to config.mode.default)
+                    }
+                }
+
                 ProjectQueueCollection(
-                    scheduled = collected,
+                    scheduled = scheduled,
+                    excludedByConfigCount = excludedByConfigCount,
                     visitedCount = visitedCount,
                     supportedCount = supportedCount,
                     withinProjectCount = withinProjectCount,
@@ -130,16 +146,7 @@ class ComplexityRadarProjectService(
                 )
             }
 
-        val scheduled = linkedMapOf<String, Pair<VirtualFile, AnalyzeMode>>()
-        var excludedByConfigCount = 0
-        collection.scheduled.values.forEach { file ->
-            val config = configService.getConfig(file)
-            if (config.isExcluded(file)) {
-                excludedByConfigCount += 1
-            } else {
-                scheduled.putIfAbsent(file.url, file to config.mode.default)
-            }
-        }
+        val scheduled = collection.scheduled
 
         val total = scheduled.size
         if (total == 0) {
@@ -149,7 +156,7 @@ class ComplexityRadarProjectService(
                 visitedCount = collection.visitedCount,
                 supportedCount = collection.supportedCount,
                 withinProjectCount = collection.withinProjectCount,
-                excludedByConfigCount = excludedByConfigCount,
+                excludedByConfigCount = collection.excludedByConfigCount,
                 fallbackUsed = collection.fallbackUsed,
                 currentFileFallbackUsed = collection.currentFileFallbackUsed,
                 queuedFileUrls = emptyList(),
@@ -167,7 +174,7 @@ class ComplexityRadarProjectService(
             visitedCount = collection.visitedCount,
             supportedCount = collection.supportedCount,
             withinProjectCount = collection.withinProjectCount,
-            excludedByConfigCount = excludedByConfigCount,
+            excludedByConfigCount = collection.excludedByConfigCount,
             fallbackUsed = collection.fallbackUsed,
             currentFileFallbackUsed = collection.currentFileFallbackUsed,
             queuedFileUrls = scheduled.keys.toList(),
@@ -236,7 +243,8 @@ class ComplexityRadarProjectService(
 
     fun savePrompt(result: ComplexityResult) = aiPromptService.savePrompt(result)
 
-    fun exportReports() = exportService.exportAll(allResults(), changedResults())
+    fun exportReports(outputDir: java.nio.file.Path? = null) =
+        exportService.exportAll(allResults(), changedResults(), outputDir)
 
     fun uiSettings() = uiSettingsService.state
 
@@ -277,6 +285,21 @@ class ComplexityRadarProjectService(
             ?.forEach { content ->
                 (content.component as? RefreshableComplexityView)?.refreshView()
             }
+    }
+
+    private fun registerFileEditorListener() {
+        val connection = project.messageBus.connect(this)
+        connection.subscribe(
+            FileEditorManagerListener.FILE_EDITOR_MANAGER,
+            object : FileEditorManagerListener {
+                override fun selectionChanged(event: FileEditorManagerEvent) {
+                    val file = event.newFile ?: return
+                    if (shouldAnalyze(file)) {
+                        scheduleAnalysis(file, preferredModeFor(file, fromEditor = true))
+                    }
+                }
+            },
+        )
     }
 
     private fun registerVcsAwareListeners() {
@@ -417,8 +440,7 @@ class ComplexityRadarProjectService(
                 }
         val adapter = adapters.firstOrNull { it.supports(psiFile) } ?: return AnalysisAttempt.Unsupported(file.url)
         return try {
-            val summary = adapter.summarize(psiFile, mode, config)
-            val hotspots = adapter.hotspots(psiFile, mode, config)
+            val (summary, hotspots) = adapter.analyze(psiFile, mode, config)
             AnalysisAttempt.Success(
                 scorer.score(
                     summary = summary,
@@ -601,7 +623,8 @@ private sealed class AnalysisAttempt(open val fileUrl: String) {
 }
 
 private data class ProjectQueueCollection(
-    val scheduled: LinkedHashMap<String, VirtualFile>,
+    val scheduled: LinkedHashMap<String, Pair<VirtualFile, AnalyzeMode>>,
+    val excludedByConfigCount: Int,
     val visitedCount: Int,
     val supportedCount: Int,
     val withinProjectCount: Int,

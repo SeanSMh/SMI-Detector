@@ -11,6 +11,7 @@ class ComplexityRadarToolWindowFactory : ToolWindowFactory {
     ) {
         val panel = SmiDashboardPanel(project)
         val content = toolWindow.contentManager.factory.createContent(panel, "", false)
+        content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
     }
 }

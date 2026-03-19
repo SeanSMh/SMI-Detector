@@ -2,6 +2,7 @@ package com.sqb.complexityradar.adapters.kotlin
 
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import com.sqb.complexityradar.adapters.FileAnalysis
 import com.sqb.complexityradar.adapters.LanguageAdapter
 import com.sqb.complexityradar.adapters.common.AnalysisSupport
 import com.sqb.complexityradar.adapters.common.AccurateSemanticSignalCollector
@@ -225,6 +226,37 @@ class KotlinLanguageAdapter(
             superTypes = superTypes,
             classNames = classNames,
         )
+    }
+
+    override fun analyze(
+        file: PsiFile,
+        mode: AnalyzeMode,
+        config: RadarConfig,
+    ): FileAnalysis {
+        val summary = summarize(file, mode, config)
+        // Collect functions via a single lightweight traversal instead of PsiTreeUtil.findChildrenOfType
+        val functions = mutableListOf<KtNamedFunction>()
+        (file as KtFile).accept(object : KtTreeVisitorVoid() {
+            override fun visitNamedFunction(function: KtNamedFunction) {
+                if (function.nameIdentifier != null) functions.add(function)
+                super.visitNamedFunction(function)
+            }
+        })
+        val hotspots = functions
+            .map { function ->
+                val metrics = collectMethodMetrics(function)
+                scorer.scoreHotspot(
+                    methodName = function.name ?: "<anonymous>",
+                    line = AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
+                    length = metrics.length,
+                    controlFlow = metrics.controlFlow,
+                    nestingPenalty = metrics.nestingPenalty,
+                    snippet = AnalysisSupport.snippet(function),
+                    config = config,
+                )
+            }.sortedByDescending { it.score }
+            .take(config.hotspot.maxHotspotsPerFile)
+        return FileAnalysis(summary, hotspots)
     }
 
     override fun hotspots(

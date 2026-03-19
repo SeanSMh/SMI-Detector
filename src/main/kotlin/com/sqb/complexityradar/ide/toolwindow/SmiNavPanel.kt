@@ -2,7 +2,6 @@ package com.sqb.complexityradar.ide.toolwindow
 
 import com.intellij.util.ui.JBUI
 import com.sqb.complexityradar.ide.ui.UiThemeTokens
-import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Graphics
@@ -59,7 +58,7 @@ internal class SmiNavPanel(
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
         val fm = getFontMetrics(font)
-        var x = 0
+        var x = insets.left
 
         tabs.forEachIndexed { _, tab ->
             val label = labels[tab]!!
@@ -89,7 +88,7 @@ internal class SmiNavPanel(
                 val badgeY = textY - fm.ascent - JBUI.scale(2)
                 g2.color = UiThemeTokens.severityCritical
                 g2.fillOval(badgeX, badgeY, badgeDiameter, badgeDiameter)
-                g2.color = Color.WHITE
+                g2.color = UiThemeTokens.btnPrimaryFg
                 val bw = badgeFm.stringWidth(badgeText)
                 g2.drawString(badgeText, badgeX + (badgeDiameter - bw) / 2, badgeY + badgeDiameter - badgeFm.descent - JBUI.scale(2))
             }
@@ -102,7 +101,7 @@ internal class SmiNavPanel(
 
     private fun tabAtX(mouseX: Int): DashboardTab? {
         val fm = getFontMetrics(font)
-        var x = 0
+        var x = insets.left
         return tabs.firstOrNull { tab ->
             val tabWidth = fm.stringWidth(labels[tab]!!) + JBUI.scale(24)
             val hit = mouseX in x..(x + tabWidth)
