@@ -93,5 +93,6 @@ class ComplexityScorerTest {
             annotations = emptySet(),
             superTypes = superTypes,
             classNames = setOf("ExampleFeatureController"),
+            cognitiveComplexity = 35,
         )
 }

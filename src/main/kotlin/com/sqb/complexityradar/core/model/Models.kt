@@ -90,6 +90,7 @@ data class FileAstSummary(
     val annotations: Set<String>,
     val superTypes: Set<String>,
     val classNames: Set<String>,
+    val cognitiveComplexity: Int = 0,   // 默认 0：现有 Adapter 调用不传此参数也能编译
 )
 
 data class SeverityRange(
@@ -116,6 +117,13 @@ data class NormalizationConfig(
     val maxFunctionLocPoints: List<ScalePoint>,
     val maxParamPoints: List<ScalePoint>,
     val smellPoints: List<ScalePoint>,
+    val churnPoints: List<ScalePoint> = listOf(
+        ScalePoint(0.0, 0.00),
+        ScalePoint(5.0, 0.20),
+        ScalePoint(15.0, 0.50),
+        ScalePoint(30.0, 0.80),
+        ScalePoint(50.0, 1.00),
+    ),
 )
 
 data class RulesConfig(
@@ -281,7 +289,14 @@ object RadarConfigDefaults {
                     statementPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(80.0, 0.2), ScalePoint(200.0, 0.55), ScalePoint(400.0, 0.85), ScalePoint(700.0, 1.0)),
                     functionPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(10.0, 0.1), ScalePoint(25.0, 0.45), ScalePoint(45.0, 0.8), ScalePoint(70.0, 1.0)),
                     typePoints = listOf(ScalePoint(1.0, 0.0), ScalePoint(2.0, 0.2), ScalePoint(4.0, 0.6), ScalePoint(6.0, 1.0)),
-                    controlFlowPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(20.0, 0.2), ScalePoint(60.0, 0.6), ScalePoint(120.0, 0.9), ScalePoint(200.0, 1.0)),
+                    controlFlowPoints = listOf(
+                        ScalePoint(0.0, 0.00),
+                        ScalePoint(15.0, 0.20),
+                        ScalePoint(30.0, 0.45),
+                        ScalePoint(60.0, 0.72),
+                        ScalePoint(100.0, 0.90),
+                        ScalePoint(150.0, 1.00),
+                    ),
                     nestingPenaltyPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(1.0, 0.15), ScalePoint(3.0, 0.35), ScalePoint(7.0, 0.65), ScalePoint(15.0, 0.9), ScalePoint(31.0, 1.0)),
                     domainCountPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(1.0, 0.05), ScalePoint(2.0, 0.25), ScalePoint(3.0, 0.55), ScalePoint(4.0, 0.8), ScalePoint(5.0, 1.0)),
                     maxFunctionLocPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(40.0, 0.15), ScalePoint(80.0, 0.45), ScalePoint(140.0, 0.8), ScalePoint(220.0, 1.0)),
@@ -298,7 +313,7 @@ object RadarConfigDefaults {
                     MultiplierRule("extends:androidx.lifecycle.ViewModel", 1.10),
                     MultiplierRule("extends:android.arch.lifecycle.ViewModel", 1.10),
                     MultiplierRule("annotation:Composable", 0.80, setOf(FactorType.NESTING)),
-                    MultiplierRule("name:*Dto*|*Entity*|*Model*|*VO*|*PO*", 0.30),
+                    MultiplierRule("name:*Dto*|*Entity*|*Model*|*VO*|*PO*", 0.55),
                     MultiplierRule("name:*Constants*|*Keys*|*Const*", 0.40),
                 ),
             exclusions =
