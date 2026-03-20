@@ -57,6 +57,8 @@ class KotlinLanguageAdapter(
         var nestingPenalty = 0
         var currentBlockDepth = 0
         var currentLambdaDepth = 0
+        var ccScore = 0
+        var ccNestingDepth = 0
         var maxFunctionLoc = 0
         var maxParamCount = 0
         var emptyCatchCount = 0
@@ -110,11 +112,23 @@ class KotlinLanguageAdapter(
 
                 override fun visitIfExpression(expression: KtIfExpression) {
                     branchCount += 1
+                    val isElse = isElseBranch(expression)
+                    if (isElse) {
+                        ccScore += 1
+                    } else {
+                        ccScore += 1 + ccNestingDepth
+                    }
+                    val elseClause = expression.`else`
+                    if (elseClause != null && elseClause !is KtIfExpression) {
+                        ccScore += 1
+                    }
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    if (!isElse) ccNestingDepth += 1
                     super.visitIfExpression(expression)
                     currentBlockDepth -= 1
+                    if (!isElse) ccNestingDepth -= 1
                 }
 
                 override fun visitWhenExpression(expression: KtWhenExpression) {
@@ -122,38 +136,52 @@ class KotlinLanguageAdapter(
                     val simpleEntries = entries.count(::isSimpleWhenEntry)
                     simpleWhenBranchCount += simpleEntries
                     branchCount += (entries.size - simpleEntries).toDouble()
+                    val nonElseBranches = expression.entries.count { !it.isElse }
+                    ccScore += nonElseBranches * (1 + ccNestingDepth)
+                    if (expression.entries.any { it.isElse }) ccScore += 1
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    ccNestingDepth += 1
                     super.visitWhenExpression(expression)
                     currentBlockDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitForExpression(expression: KtForExpression) {
                     loopCount += 1
+                    ccScore += 1 + ccNestingDepth
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    ccNestingDepth += 1
                     super.visitForExpression(expression)
                     currentBlockDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitWhileExpression(expression: KtWhileExpression) {
                     loopCount += 1
+                    ccScore += 1 + ccNestingDepth
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    ccNestingDepth += 1
                     super.visitWhileExpression(expression)
                     currentBlockDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitDoWhileExpression(expression: KtDoWhileExpression) {
                     loopCount += 1
+                    ccScore += 1 + ccNestingDepth
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    ccNestingDepth += 1
                     super.visitDoWhileExpression(expression)
                     currentBlockDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitTryExpression(expression: KtTryExpression) {
@@ -161,8 +189,10 @@ class KotlinLanguageAdapter(
                     currentBlockDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentBlockDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentBlockDepth)
+                    ccNestingDepth += 1
                     super.visitTryExpression(expression)
                     currentBlockDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitCatchSection(catchClause: KtCatchClause) {
@@ -170,6 +200,7 @@ class KotlinLanguageAdapter(
                     if (body is KtBlockExpression && body.statements.isEmpty()) {
                         emptyCatchCount += 1
                     }
+                    ccScore += 1 + (ccNestingDepth - 1).coerceAtLeast(0)
                     super.visitCatchSection(catchClause)
                 }
 
@@ -177,14 +208,23 @@ class KotlinLanguageAdapter(
                     currentLambdaDepth += 1
                     maxLambdaDepth = maxOf(maxLambdaDepth, currentLambdaDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentLambdaDepth)
+                    ccNestingDepth += 1
                     super.visitLambdaExpression(lambdaExpression)
                     currentLambdaDepth -= 1
+                    ccNestingDepth -= 1
                 }
 
                 override fun visitBinaryExpression(expression: KtBinaryExpression) {
                     when (expression.operationToken) {
                         KtTokens.ANDAND, KtTokens.OROR -> logicalOpCount += 1
                         KtTokens.ELVIS -> ternaryCount += 1
+                    }
+                    val op = expression.operationToken
+                    if (op == KtTokens.ANDAND || op == KtTokens.OROR) {
+                        val parentOp = (expression.parent as? KtBinaryExpression)?.operationToken
+                        if (parentOp != op) {
+                            ccScore += 1
+                        }
                     }
                     super.visitBinaryExpression(expression)
                 }
@@ -225,6 +265,7 @@ class KotlinLanguageAdapter(
             annotations = annotations,
             superTypes = superTypes,
             classNames = classNames,
+            cognitiveComplexity = ccScore,
         )
     }
 
@@ -246,13 +287,13 @@ class KotlinLanguageAdapter(
             .map { function ->
                 val metrics = collectMethodMetrics(function)
                 scorer.scoreHotspot(
-                    methodName = function.name ?: "<anonymous>",
-                    line = AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
-                    length = metrics.length,
-                    controlFlow = metrics.controlFlow,
-                    nestingPenalty = metrics.nestingPenalty,
-                    snippet = AnalysisSupport.snippet(function),
-                    config = config,
+                    function.name ?: "<anonymous>",
+                    AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
+                    metrics.length,
+                    metrics.cognitiveComplexity.toDouble(),
+                    metrics.nestingPenalty,
+                    AnalysisSupport.snippet(function),
+                    config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)
@@ -271,13 +312,13 @@ class KotlinLanguageAdapter(
             .map { function ->
                 val metrics = collectMethodMetrics(function)
                 scorer.scoreHotspot(
-                    methodName = function.name ?: "<anonymous>",
-                    line = AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
-                    length = metrics.length,
-                    controlFlow = metrics.controlFlow,
-                    nestingPenalty = metrics.nestingPenalty,
-                    snippet = AnalysisSupport.snippet(function),
-                    config = config,
+                    function.name ?: "<anonymous>",
+                    AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
+                    metrics.length,
+                    metrics.cognitiveComplexity.toDouble(),
+                    metrics.nestingPenalty,
+                    AnalysisSupport.snippet(function),
+                    config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)
@@ -285,105 +326,156 @@ class KotlinLanguageAdapter(
     }
 
     private fun collectMethodMetrics(function: KtNamedFunction): KotlinMethodMetrics {
-        var branchCount = 0.0
-        var simpleWhenBranchCount = 0
-        var loopCount = 0
-        var tryCatchCount = 0
-        var ternaryCount = 0
-        var logicalOpCount = 0
+        var ccScore = 0
+        var ccDepth = 0
         var currentDepth = 0
         var maxDepth = 0
         var penalty = 0
+        val methodName = function.name
 
         function.accept(
             object : KtTreeVisitorVoid() {
                 override fun visitNamedFunction(innerFunction: KtNamedFunction) {
-                    if (innerFunction !== function) {
-                        return
-                    }
+                    if (innerFunction !== function) return  // skip nested named functions
                     super.visitNamedFunction(innerFunction)
                 }
 
                 override fun visitIfExpression(expression: KtIfExpression) {
-                    branchCount += 1
-                    currentDepth += 1
-                    maxDepth = maxOf(maxDepth, currentDepth)
-                    penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
+                    val isElseContinuation = isElseBranch(expression)
+                    if (isElseContinuation) {
+                        ccScore += 1                    // else if: flat +1
+                    } else {
+                        ccScore += 1 + ccDepth          // if: +1 + current depth
+                    }
+                    // plain else (not an else-if)
+                    val elseClause = expression.`else`
+                    if (elseClause != null && elseClause !is KtIfExpression) {
+                        ccScore += 1
+                    }
+                    // only non-else-if increases nesting depth
+                    if (!isElseContinuation) {
+                        ccDepth += 1
+                        currentDepth += 1
+                        maxDepth = maxOf(maxDepth, currentDepth)
+                        penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
+                    }
                     super.visitIfExpression(expression)
-                    currentDepth -= 1
+                    if (!isElseContinuation) {
+                        ccDepth -= 1
+                        currentDepth -= 1
+                    }
                 }
 
                 override fun visitWhenExpression(expression: KtWhenExpression) {
-                    val entries = expression.entries.filterNot(KtWhenEntry::isElse)
-                    val simpleEntries = entries.count(::isSimpleWhenEntry)
-                    simpleWhenBranchCount += simpleEntries
-                    branchCount += (entries.size - simpleEntries).toDouble()
+                    val nonElseBranches = expression.entries.count { !it.isElse }
+                    ccScore += nonElseBranches * (1 + ccDepth)
+                    if (expression.entries.any { it.isElse }) ccScore += 1
+                    ccDepth += 1
                     currentDepth += 1
                     maxDepth = maxOf(maxDepth, currentDepth)
                     penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitWhenExpression(expression)
+                    ccDepth -= 1
                     currentDepth -= 1
                 }
 
                 override fun visitForExpression(expression: KtForExpression) {
-                    loopCount += 1
+                    ccScore += 1 + ccDepth
+                    ccDepth += 1
                     currentDepth += 1
                     maxDepth = maxOf(maxDepth, currentDepth)
                     penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitForExpression(expression)
+                    ccDepth -= 1
                     currentDepth -= 1
                 }
 
                 override fun visitWhileExpression(expression: KtWhileExpression) {
-                    loopCount += 1
+                    ccScore += 1 + ccDepth
+                    ccDepth += 1
                     currentDepth += 1
                     maxDepth = maxOf(maxDepth, currentDepth)
                     penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitWhileExpression(expression)
+                    ccDepth -= 1
                     currentDepth -= 1
                 }
 
                 override fun visitDoWhileExpression(expression: KtDoWhileExpression) {
-                    loopCount += 1
+                    ccScore += 1 + ccDepth
+                    ccDepth += 1
                     currentDepth += 1
                     maxDepth = maxOf(maxDepth, currentDepth)
                     penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitDoWhileExpression(expression)
+                    ccDepth -= 1
                     currentDepth -= 1
                 }
 
                 override fun visitTryExpression(expression: KtTryExpression) {
-                    tryCatchCount += expression.catchClauses.size
+                    // try itself adds no CC, but increases depth for catch
+                    ccDepth += 1
                     currentDepth += 1
                     maxDepth = maxOf(maxDepth, currentDepth)
                     penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitTryExpression(expression)
+                    ccDepth -= 1
                     currentDepth -= 1
                 }
 
+                override fun visitCatchSection(catchClause: KtCatchClause) {
+                    // use outer depth (ccDepth - 1) to avoid double-counting try's depth increment
+                    ccScore += 1 + (ccDepth - 1).coerceAtLeast(0)
+                    super.visitCatchSection(catchClause)
+                }
+
+                override fun visitLambdaExpression(lambdaExpression: KtLambdaExpression) {
+                    ccDepth += 1
+                    super.visitLambdaExpression(lambdaExpression)
+                    ccDepth -= 1
+                }
+
                 override fun visitBinaryExpression(expression: KtBinaryExpression) {
-                    when (expression.operationToken) {
-                        KtTokens.ANDAND, KtTokens.OROR -> logicalOpCount += 1
-                        KtTokens.ELVIS -> ternaryCount += 1
+                    val op = expression.operationToken
+                    if (op == KtTokens.ANDAND || op == KtTokens.OROR) {
+                        val parentOp = (expression.parent as? KtBinaryExpression)?.operationToken
+                        if (parentOp != op) {
+                            ccScore += 1
+                        }
                     }
                     super.visitBinaryExpression(expression)
+                }
+
+                override fun visitCallExpression(expression: KtCallExpression) {
+                    val callee = expression.calleeExpression?.text?.substringAfterLast(".")
+                    if (methodName != null && callee == methodName) {
+                        ccScore += 1  // recursion
+                    }
+                    super.visitCallExpression(expression)
+                }
+
+                override fun visitBreakExpression(expression: org.jetbrains.kotlin.psi.KtBreakExpression) {
+                    if (expression.getLabelName() != null) ccScore += 1  // break with label
+                    super.visitBreakExpression(expression)
+                }
+
+                override fun visitContinueExpression(expression: org.jetbrains.kotlin.psi.KtContinueExpression) {
+                    if (expression.getLabelName() != null) ccScore += 1  // continue with label
+                    super.visitContinueExpression(expression)
                 }
             },
         )
 
-        val controlFlow = AnalysisSupport.computeControlFlow(
-            branchCount = branchCount,
-            simpleWhenBranchCount = simpleWhenBranchCount,
-            loopCount = loopCount,
-            tryCatchCount = tryCatchCount,
-            ternaryCount = ternaryCount,
-            logicalOpCount = logicalOpCount,
-        )
         return KotlinMethodMetrics(
             length = AnalysisSupport.effectiveLoc(function.text),
-            controlFlow = controlFlow,
+            cognitiveComplexity = ccScore,
             nestingPenalty = maxOf(penalty, AnalysisSupport.nestingPenalty(maxDepth)),
         )
+    }
+
+    private fun isElseBranch(expression: KtIfExpression): Boolean {
+        val parent = expression.parent
+        return parent is KtIfExpression && parent.`else` === expression
     }
 
     private fun isSimpleWhenEntry(entry: KtWhenEntry): Boolean {
@@ -395,6 +487,6 @@ class KotlinLanguageAdapter(
 
 private data class KotlinMethodMetrics(
     val length: Int,
-    val controlFlow: Double,
+    val cognitiveComplexity: Int,
     val nestingPenalty: Int,
 )
