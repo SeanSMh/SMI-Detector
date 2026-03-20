@@ -59,6 +59,9 @@ class KotlinLanguageAdapter(
         var currentLambdaDepth = 0
         var ccScore = 0
         var ccNestingDepth = 0
+        // Note: recursion detection and labeled break/continue are not tracked at the file level
+        // because a flat visitor cannot easily correlate call sites with their enclosing method name.
+        // These are tracked per-method in collectMethodMetrics() instead.
         var maxFunctionLoc = 0
         var maxParamCount = 0
         var emptyCatchCount = 0
@@ -431,8 +434,12 @@ class KotlinLanguageAdapter(
 
                 override fun visitLambdaExpression(lambdaExpression: KtLambdaExpression) {
                     ccDepth += 1
+                    currentDepth += 1
+                    maxDepth = maxOf(maxDepth, currentDepth)
+                    penalty = AnalysisSupport.mergePenalty(penalty, currentDepth)
                     super.visitLambdaExpression(lambdaExpression)
                     ccDepth -= 1
+                    currentDepth -= 1
                 }
 
                 override fun visitBinaryExpression(expression: KtBinaryExpression) {
