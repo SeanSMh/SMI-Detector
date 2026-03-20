@@ -63,6 +63,8 @@ class ComplexityScorer {
                 summary.bangBangCount    * 0.08 +
                 summary.magicNumberCount * 0.01
         val smellNorm = Normalization.piecewise(smellsRaw, config.normalization.smellPoints)
+        // Use max rather than average so that smells alone can push readability to critical
+        // when the file has no structural issues (short functions, few params).
         val readability =
             maxOf(
                 smellNorm,
@@ -234,7 +236,7 @@ class ComplexityScorer {
             FactorType.CONTROL_FLOW -> "Branches ${summary.branchCount + summary.simpleWhenBranchCount}, loops ${summary.loopCount}, catches ${summary.tryCatchCount}."
             FactorType.NESTING -> "Max block depth ${summary.maxBlockDepth}, max lambda depth ${summary.maxLambdaDepth}, nesting penalty ${summary.nestingPenalty}."
             FactorType.DOMAIN_COUPLING -> "Domains hit ${summary.domainTagsHit.joinToString()}."
-            FactorType.READABILITY -> "Longest function ${summary.maxFunctionLoc} LOC, max params ${summary.maxParamCount}, TODO ${summary.todoCount}."
+            FactorType.READABILITY -> "Longest function ${summary.maxFunctionLoc} LOC, max params ${summary.maxParamCount}, empty catch ${summary.emptyCatchCount}, !! ops ${summary.bangBangCount}, TODO ${summary.todoCount}."
         }
 
     private fun hash(value: String): String {

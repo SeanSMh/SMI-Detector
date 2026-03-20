@@ -94,9 +94,10 @@ class ComplexityScorerTest {
             )
         )
         val readability = result.contributions.first { it.type == FactorType.READABILITY }
+        // 10 * 0.08 = 0.80 smellsRaw → smellNorm ≈ 0.507 via piecewise; threshold 0.45 gives ~11% margin
         assertTrue(
-            readability.normalized > 0.30,
-            "Expected readability.normalized > 0.30 for 10 !! operators, was ${readability.normalized}"
+            readability.normalized > 0.45,
+            "Expected readability.normalized > 0.45 for 10 !! operators, was ${readability.normalized}"
         )
     }
 
