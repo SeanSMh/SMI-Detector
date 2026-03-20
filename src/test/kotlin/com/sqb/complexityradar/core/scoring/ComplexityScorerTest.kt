@@ -2,6 +2,7 @@ package com.sqb.complexityradar.core.scoring
 
 import com.sqb.complexityradar.core.model.AnalyzeMode
 import com.sqb.complexityradar.core.model.DomainTag
+import com.sqb.complexityradar.core.model.FactorType
 import com.sqb.complexityradar.core.model.FileAstSummary
 import com.sqb.complexityradar.core.model.RadarConfigDefaults
 import com.sqb.complexityradar.core.model.Severity
@@ -60,6 +61,44 @@ class ComplexityScorerTest {
             config = RadarConfigDefaults.defaultConfig,
             hotspots = emptyList(),
         )
+
+    @Test
+    fun `three empty catches push readability normalized above 0 point 6`() {
+        val result = score(
+            baseSummary().copy(
+                emptyCatchCount = 3,
+                todoCount = 0,
+                bangBangCount = 0,
+                magicNumberCount = 0,
+                maxFunctionLoc = 0,
+                maxParamCount = 0,
+            )
+        )
+        val readability = result.contributions.first { it.type == FactorType.READABILITY }
+        assertTrue(
+            readability.normalized > 0.60,
+            "Expected readability.normalized > 0.60 for 3 empty catches, was ${readability.normalized}"
+        )
+    }
+
+    @Test
+    fun `ten bang bang operators push readability normalized above 0 point 3`() {
+        val result = score(
+            baseSummary().copy(
+                bangBangCount = 10,
+                emptyCatchCount = 0,
+                todoCount = 0,
+                magicNumberCount = 0,
+                maxFunctionLoc = 0,
+                maxParamCount = 0,
+            )
+        )
+        val readability = result.contributions.first { it.type == FactorType.READABILITY }
+        assertTrue(
+            readability.normalized > 0.30,
+            "Expected readability.normalized > 0.30 for 10 !! operators, was ${readability.normalized}"
+        )
+    }
 
     private fun baseSummary(
         domainTagsHit: Set<DomainTag> = setOf(DomainTag.UI, DomainTag.NETWORK, DomainTag.STORAGE),

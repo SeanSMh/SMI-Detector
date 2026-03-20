@@ -58,16 +58,19 @@ class ComplexityScorer {
                 .coerceIn(0.0, 1.0)
 
         val smellsRaw =
-            summary.todoCount * 0.03 +
-                summary.emptyCatchCount * 0.12 +
-                summary.bangBangCount * 0.02 +
+            summary.todoCount        * 0.03 +
+                summary.emptyCatchCount  * 0.40 +
+                summary.bangBangCount    * 0.08 +
                 summary.magicNumberCount * 0.01
+        val smellNorm = Normalization.piecewise(smellsRaw, config.normalization.smellPoints)
         val readability =
-            Normalization.average(
-                listOf(
-                    Normalization.piecewise(summary.maxFunctionLoc.toDouble(), config.normalization.maxFunctionLocPoints),
-                    Normalization.piecewise(summary.maxParamCount.toDouble(), config.normalization.maxParamPoints),
-                    Normalization.piecewise(smellsRaw, config.normalization.smellPoints),
+            maxOf(
+                smellNorm,
+                Normalization.average(
+                    listOf(
+                        Normalization.piecewise(summary.maxFunctionLoc.toDouble(), config.normalization.maxFunctionLocPoints),
+                        Normalization.piecewise(summary.maxParamCount.toDouble(), config.normalization.maxParamPoints),
+                    ),
                 ),
             )
 

@@ -301,7 +301,7 @@ object RadarConfigDefaults {
                     domainCountPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(1.0, 0.05), ScalePoint(2.0, 0.25), ScalePoint(3.0, 0.55), ScalePoint(4.0, 0.8), ScalePoint(5.0, 1.0)),
                     maxFunctionLocPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(40.0, 0.15), ScalePoint(80.0, 0.45), ScalePoint(140.0, 0.8), ScalePoint(220.0, 1.0)),
                     maxParamPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(4.0, 0.1), ScalePoint(7.0, 0.45), ScalePoint(10.0, 0.8), ScalePoint(14.0, 1.0)),
-                    smellPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(0.5, 0.2), ScalePoint(1.5, 0.55), ScalePoint(3.0, 0.85), ScalePoint(5.0, 1.0)),
+                    smellPoints = listOf(ScalePoint(0.0, 0.0), ScalePoint(0.5, 0.40), ScalePoint(1.2, 0.65), ScalePoint(2.5, 0.90), ScalePoint(4.0, 1.0)),
                 ),
             rules = RulesConfig(),
             multipliers =
