@@ -354,9 +354,14 @@ class ComplexityRadarProjectService(
         file: VirtualFile,
         mode: AnalyzeMode,
     ) {
+        // Compute churn outside the read lock (VCS I/O should not hold a read lock)
+        val churnNormalized = Normalization.piecewise(
+            vcsFacade.commitCountFor(file).toDouble(),
+            configFor(file).normalization.churnPoints,
+        )
         ReadAction
             .nonBlocking<AnalysisAttempt> {
-                computeResult(file, mode)
+                computeResult(file, mode, churnNormalized)
             }.expireWith(this)
             .finishOnUiThread(ModalityState.any()) { attempt ->
                 when (attempt) {
@@ -424,6 +429,7 @@ class ComplexityRadarProjectService(
     private fun computeResult(
         file: VirtualFile,
         mode: AnalyzeMode,
+        churnNormalized: Double = 0.0,
     ): AnalysisAttempt {
         val config = configService.getConfig(file)
         if (config.isExcluded(file)) {
@@ -450,10 +456,7 @@ class ComplexityRadarProjectService(
                     mode = mode,
                     config = config,
                     hotspots = hotspots,
-                    churnNormalized = Normalization.piecewise(
-                        vcsFacade.commitCountFor(file).toDouble(),
-                        config.normalization.churnPoints,
-                    ),
+                    churnNormalized = churnNormalized,
                 ),
             )
         } catch (_: ProcessCanceledException) {

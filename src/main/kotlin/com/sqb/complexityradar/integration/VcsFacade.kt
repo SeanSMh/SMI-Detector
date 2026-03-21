@@ -38,6 +38,6 @@ class VcsFacade(
         val session = historyProvider.createSessionFor(filePath)
             ?: return@runCatching 0
         val cutoff = System.currentTimeMillis() - days.toLong() * 86_400_000L
-        session.revisionList.count { (it.revisionDate?.time ?: 0L) >= cutoff }
+        session.revisionList.count { it.revisionDate != null && it.revisionDate.time >= cutoff }
     }.getOrDefault(0)
 }
