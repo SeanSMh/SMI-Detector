@@ -62,6 +62,9 @@ class JavaLanguageAdapter(
         var emptyCatchCount = 0
         var ccScore = 0
         var ccNestingDepth = 0
+        // Note: recursion detection and labeled break/continue are not tracked at the file level
+        // because a flat visitor cannot easily correlate call sites with their enclosing method name.
+        // These are tracked per-method in collectMethodMetrics() instead.
 
         val tokens = mutableListOf<String>()
         val annotations = linkedSetOf<String>()
