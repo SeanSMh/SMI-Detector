@@ -129,7 +129,7 @@ class ComplexityResultStore(
 
     private fun cacheDir(): Path? {
         val base = projectBasePath ?: return null
-        return Path.of(base).resolve(".idea").resolve("complexity-radar").resolve("cache-v2.1")
+        return Path.of(base).resolve(".idea").resolve("complexity-radar").resolve("cache-v3.0")
     }
 
     private fun fileNameFor(fileUrl: String): String = "${sha256(fileUrl)}.json"
