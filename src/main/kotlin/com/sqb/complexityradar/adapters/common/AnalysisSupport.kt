@@ -88,21 +88,6 @@ object AnalysisSupport {
         }
     }
 
-    fun computeControlFlow(
-        branchCount: Double,
-        simpleWhenBranchCount: Int = 0,
-        loopCount: Int,
-        tryCatchCount: Int,
-        ternaryCount: Int,
-        logicalOpCount: Int,
-        kotlinWhenSimpleWeight: Double = 0.25,
-    ): Double =
-        branchCount +
-            simpleWhenBranchCount * kotlinWhenSimpleWeight +
-            loopCount * 1.2 +
-            tryCatchCount * 1.0 +
-            ternaryCount * 0.7 +
-            logicalOpCount * 0.4
 }
 
 object DomainEvidenceCollector {

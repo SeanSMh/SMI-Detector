@@ -294,13 +294,13 @@ class JavaLanguageAdapter(
             .map { method ->
                 val metrics = collectMethodMetrics(method)
                 scorer.scoreHotspot(
-                    method.name,
-                    AnalysisSupport.lineNumber(file, method.nameIdentifier ?: method),
-                    metrics.length,
-                    metrics.cognitiveComplexity.toDouble(),
-                    metrics.nestingPenalty,
-                    AnalysisSupport.snippet(method),
-                    config,
+                    methodName          = method.name,
+                    line                = AnalysisSupport.lineNumber(file, method.nameIdentifier ?: method),
+                    length              = metrics.length,
+                    cognitiveComplexity = metrics.cognitiveComplexity,
+                    nestingPenalty      = metrics.nestingPenalty,
+                    snippet             = AnalysisSupport.snippet(method),
+                    config              = config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)
@@ -318,13 +318,13 @@ class JavaLanguageAdapter(
             .map { method ->
                 val metrics = collectMethodMetrics(method)
                 scorer.scoreHotspot(
-                    method.name,
-                    AnalysisSupport.lineNumber(file, method.nameIdentifier ?: method),
-                    metrics.length,
-                    metrics.cognitiveComplexity.toDouble(),
-                    metrics.nestingPenalty,
-                    AnalysisSupport.snippet(method),
-                    config,
+                    methodName          = method.name,
+                    line                = AnalysisSupport.lineNumber(file, method.nameIdentifier ?: method),
+                    length              = metrics.length,
+                    cognitiveComplexity = metrics.cognitiveComplexity,
+                    nestingPenalty      = metrics.nestingPenalty,
+                    snippet             = AnalysisSupport.snippet(method),
+                    config              = config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)

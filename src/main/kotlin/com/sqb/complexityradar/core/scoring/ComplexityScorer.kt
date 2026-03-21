@@ -34,14 +34,10 @@ class ComplexityScorer {
                 ),
             )
 
-        val controlFlowRaw =
-            summary.branchCount +
-                summary.simpleWhenBranchCount * config.rules.kotlinWhenSimpleWeight +
-                summary.loopCount * 1.2 +
-                summary.tryCatchCount * 1.0 +
-                summary.ternaryCount * 0.7 +
-                summary.logicalOpCount * 0.4
-        val controlFlow = Normalization.piecewise(controlFlowRaw, config.normalization.controlFlowPoints)
+        val controlFlow = Normalization.piecewise(
+            summary.cognitiveComplexity.toDouble(),
+            config.normalization.controlFlowPoints,
+        )
 
         val maxDepth = maxOf(summary.maxBlockDepth, summary.maxLambdaDepth)
         val nesting = Normalization.piecewise(summary.nestingPenalty.toDouble(), config.normalization.nestingPenaltyPoints)
@@ -98,7 +94,7 @@ class ComplexityScorer {
                     rawValue =
                         when (factor) {
                             FactorType.SIZE -> summary.effectiveLoc.toDouble()
-                            FactorType.CONTROL_FLOW -> controlFlowRaw
+                            FactorType.CONTROL_FLOW -> summary.cognitiveComplexity.toDouble()
                             FactorType.NESTING -> summary.nestingPenalty.toDouble()
                             FactorType.DOMAIN_COUPLING -> summary.domainTagsHit.size.toDouble()
                             FactorType.READABILITY -> smellsRaw
@@ -142,20 +138,20 @@ class ComplexityScorer {
         methodName: String,
         line: Int,
         length: Int,
-        controlFlow: Double,
+        cognitiveComplexity: Int,
         nestingPenalty: Int,
         snippet: String?,
         config: RadarConfig,
     ): Hotspot {
-        val nesting = Normalization.piecewise(nestingPenalty.toDouble(), config.normalization.nestingPenaltyPoints)
-        val control = Normalization.piecewise(controlFlow, config.normalization.controlFlowPoints)
-        val methodLength = Normalization.piecewise(length.toDouble(), config.normalization.maxFunctionLocPoints)
+        val nesting      = Normalization.piecewise(nestingPenalty.toDouble(),      config.normalization.nestingPenaltyPoints)
+        val control      = Normalization.piecewise(cognitiveComplexity.toDouble(), config.normalization.controlFlowPoints)
+        val methodLength = Normalization.piecewise(length.toDouble(),              config.normalization.maxFunctionLocPoints)
         val score = (100.0 * (0.45 * nesting + 0.35 * control + 0.20 * methodLength)).roundToInt().coerceIn(0, 100)
         val severity = config.severityFor(score)
         val contributions =
             listOf(
                 FactorContribution(FactorType.NESTING, nesting, 0.45, nesting * 0.45, nestingPenalty.toDouble(), "Nested blocks are concentrated in this method."),
-                FactorContribution(FactorType.CONTROL_FLOW, control, 0.35, control * 0.35, controlFlow, "Branching and looping are concentrated in this method."),
+                FactorContribution(FactorType.CONTROL_FLOW, control, 0.35, control * 0.35, cognitiveComplexity.toDouble(), "Cognitive complexity is concentrated in this method."),
                 FactorContribution(FactorType.SIZE, methodLength, 0.20, methodLength * 0.20, length.toDouble(), "Method length is adding local comprehension cost."),
             ).sortedByDescending { it.weightedScore }
         return Hotspot(

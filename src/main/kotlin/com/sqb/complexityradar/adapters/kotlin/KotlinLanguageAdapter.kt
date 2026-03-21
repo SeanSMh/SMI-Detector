@@ -290,13 +290,13 @@ class KotlinLanguageAdapter(
             .map { function ->
                 val metrics = collectMethodMetrics(function)
                 scorer.scoreHotspot(
-                    function.name ?: "<anonymous>",
-                    AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
-                    metrics.length,
-                    metrics.cognitiveComplexity.toDouble(),
-                    metrics.nestingPenalty,
-                    AnalysisSupport.snippet(function),
-                    config,
+                    methodName          = function.name ?: "<anonymous>",
+                    line                = AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
+                    length              = metrics.length,
+                    cognitiveComplexity = metrics.cognitiveComplexity,
+                    nestingPenalty      = metrics.nestingPenalty,
+                    snippet             = AnalysisSupport.snippet(function),
+                    config              = config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)
@@ -315,13 +315,13 @@ class KotlinLanguageAdapter(
             .map { function ->
                 val metrics = collectMethodMetrics(function)
                 scorer.scoreHotspot(
-                    function.name ?: "<anonymous>",
-                    AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
-                    metrics.length,
-                    metrics.cognitiveComplexity.toDouble(),
-                    metrics.nestingPenalty,
-                    AnalysisSupport.snippet(function),
-                    config,
+                    methodName          = function.name ?: "<anonymous>",
+                    line                = AnalysisSupport.lineNumber(file, function.nameIdentifier ?: function),
+                    length              = metrics.length,
+                    cognitiveComplexity = metrics.cognitiveComplexity,
+                    nestingPenalty      = metrics.nestingPenalty,
+                    snippet             = AnalysisSupport.snippet(function),
+                    config              = config,
                 )
             }.sortedByDescending { it.score }
             .take(config.hotspot.maxHotspotsPerFile)
