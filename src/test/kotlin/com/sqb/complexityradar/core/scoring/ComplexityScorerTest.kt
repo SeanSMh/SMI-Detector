@@ -126,6 +126,24 @@ class ComplexityScorerTest {
             "Expected normalized > 0.80 for CC=80, was ${cf.normalized}")
     }
 
+    @Test
+    fun `churn normalized 0 point 5 raises priority above score`() {
+        // commitCountFor returns 15 → churnNormalized ≈ 0.50 per churnPoints
+        // priority = score * (1 + 0.5 * churnNormalized) = score * 1.25
+        val summary = baseSummary()
+        val result = scorer.score(
+            summary         = summary,
+            fileUrl         = "file:///Foo.kt",
+            filePath        = "/tmp/Foo.kt",
+            mode            = AnalyzeMode.ACCURATE,
+            config          = RadarConfigDefaults.defaultConfig,
+            hotspots        = emptyList(),
+            churnNormalized = 0.50,
+        )
+        assertTrue(result.priority > result.score,
+            "Expected priority ${result.priority} > score ${result.score} when churn is active")
+    }
+
     private fun baseSummary(
         domainTagsHit: Set<DomainTag> = setOf(DomainTag.UI, DomainTag.NETWORK, DomainTag.STORAGE),
         superTypes: Set<String> = emptySet(),

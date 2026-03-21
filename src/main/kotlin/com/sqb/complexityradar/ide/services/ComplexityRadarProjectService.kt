@@ -33,6 +33,7 @@ import com.sqb.complexityradar.core.model.RadarConfig
 import com.sqb.complexityradar.core.model.ScoreDigest
 import com.sqb.complexityradar.core.model.Severity
 import com.sqb.complexityradar.core.scoring.ComplexityScorer
+import com.sqb.complexityradar.core.scoring.Normalization
 import com.sqb.complexityradar.ide.cache.ComplexityResultStore
 import com.sqb.complexityradar.integration.AiPromptService
 import com.sqb.complexityradar.integration.ExportService
@@ -449,7 +450,10 @@ class ComplexityRadarProjectService(
                     mode = mode,
                     config = config,
                     hotspots = hotspots,
-                    churnNormalized = 0.0,
+                    churnNormalized = Normalization.piecewise(
+                        vcsFacade.commitCountFor(file).toDouble(),
+                        config.normalization.churnPoints,
+                    ),
                 ),
             )
         } catch (_: ProcessCanceledException) {
