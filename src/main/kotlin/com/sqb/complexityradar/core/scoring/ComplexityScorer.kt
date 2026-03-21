@@ -39,7 +39,6 @@ class ComplexityScorer {
             config.normalization.controlFlowPoints,
         )
 
-        val maxDepth = maxOf(summary.maxBlockDepth, summary.maxLambdaDepth)
         val nesting = Normalization.piecewise(summary.nestingPenalty.toDouble(), config.normalization.nestingPenaltyPoints)
 
         val domainBase = Normalization.piecewise(summary.domainTagsHit.size.toDouble(), config.normalization.domainCountPoints)
@@ -229,7 +228,7 @@ class ComplexityScorer {
     ): String =
         when (factor) {
             FactorType.SIZE -> "Effective LOC ${summary.effectiveLoc}, statements ${summary.statementCount}, functions ${summary.functionCount}."
-            FactorType.CONTROL_FLOW -> "Branches ${summary.branchCount + summary.simpleWhenBranchCount}, loops ${summary.loopCount}, catches ${summary.tryCatchCount}."
+            FactorType.CONTROL_FLOW -> "Cognitive complexity ${summary.cognitiveComplexity} (branches ${summary.branchCount.toInt()}, loops ${summary.loopCount}, catches ${summary.tryCatchCount})."
             FactorType.NESTING -> "Max block depth ${summary.maxBlockDepth}, max lambda depth ${summary.maxLambdaDepth}, nesting penalty ${summary.nestingPenalty}."
             FactorType.DOMAIN_COUPLING -> "Domains hit ${summary.domainTagsHit.joinToString()}."
             FactorType.READABILITY -> "Longest function ${summary.maxFunctionLoc} LOC, max params ${summary.maxParamCount}, empty catch ${summary.emptyCatchCount}, !! ops ${summary.bangBangCount}, TODO ${summary.todoCount}."
