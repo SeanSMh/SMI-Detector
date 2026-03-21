@@ -149,6 +149,8 @@ class JavaLanguageAdapter(
 
                 override fun visitSwitchExpression(expression: PsiSwitchExpression) {
                     ccScore += 1 + ccNestingDepth
+                    val labels = expression.body?.statements?.count { it is PsiSwitchLabelStatementBase } ?: 0
+                    branchCount += labels.toDouble()
                     currentDepth += 1
                     maxBlockDepth = maxOf(maxBlockDepth, currentDepth)
                     nestingPenalty = AnalysisSupport.mergePenalty(nestingPenalty, currentDepth)
