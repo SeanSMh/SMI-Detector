@@ -249,7 +249,7 @@ class ComplexityRadarProjectService(
     fun uiSettings() = uiSettingsService.state
 
     fun openRadarForCurrentFile() {
-        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Complexity Radar") ?: return
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("SMI Detector") ?: return
         val file = currentFile()
         file
             ?.takeIf(::shouldAnalyze)
@@ -279,7 +279,7 @@ class ComplexityRadarProjectService(
         if (project.isDisposed) {
             return
         }
-        ToolWindowManager.getInstance(project).getToolWindow("Complexity Radar")
+        ToolWindowManager.getInstance(project).getToolWindow("SMI Detector")
             ?.contentManager
             ?.contents
             ?.forEach { content ->
