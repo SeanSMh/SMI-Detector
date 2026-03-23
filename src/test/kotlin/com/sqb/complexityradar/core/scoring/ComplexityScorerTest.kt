@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.core.scoring
+package com.bril.code_radar.core.scoring
 
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.core.model.DomainTag
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.FileAstSummary
-import com.sqb.complexityradar.core.model.RadarConfigDefaults
-import com.sqb.complexityradar.core.model.Severity
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.DomainTag
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.FileAstSummary
+import com.bril.code_radar.core.model.RadarConfigDefaults
+import com.bril.code_radar.core.model.Severity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue

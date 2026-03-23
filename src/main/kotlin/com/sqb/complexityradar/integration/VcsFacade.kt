@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.integration
+package com.bril.code_radar.integration
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.ProjectLevelVcsManager

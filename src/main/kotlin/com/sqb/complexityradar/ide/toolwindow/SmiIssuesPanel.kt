@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
@@ -6,10 +6,10 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.Hotspot
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.ide.ui.UiThemeTokens
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.Hotspot
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.ide.ui.UiThemeTokens
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component

@@ -1,13 +1,13 @@
-package com.sqb.complexityradar.ide.editor
+package com.bril.code_radar.ide.editor
 
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
-import com.sqb.complexityradar.ide.ui.poopGlyphStrip
-import com.sqb.complexityradar.ide.ui.poopScoreCount
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.ide.ui.poopGlyphStrip
+import com.bril.code_radar.ide.ui.poopScoreCount
 import java.util.function.Function
 import javax.swing.JComponent
 

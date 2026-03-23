@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.gutter
+package com.bril.code_radar.ide.gutter
 
 import com.intellij.codeInsight.daemon.GutterIconNavigationHandler
 import com.intellij.codeInsight.daemon.LineMarkerInfo
@@ -8,11 +8,11 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiIdentifier
 import com.intellij.psi.PsiMethod
-import com.sqb.complexityradar.adapters.common.AnalysisSupport
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
-import com.sqb.complexityradar.ide.ui.poopAccentColor
-import com.sqb.complexityradar.ide.ui.poopScoreCount
+import com.bril.code_radar.adapters.common.AnalysisSupport
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.ide.ui.poopAccentColor
+import com.bril.code_radar.ide.ui.poopScoreCount
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import java.awt.BasicStroke
 import java.awt.Component

@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.ui
+package com.bril.code_radar.ide.ui
 
 import com.intellij.ui.JBColor
 import java.awt.Color

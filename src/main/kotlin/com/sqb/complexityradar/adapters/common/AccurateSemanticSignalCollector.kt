@@ -1,8 +1,8 @@
-package com.sqb.complexityradar.adapters.common
+package com.bril.code_radar.adapters.common
 
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiType
-import com.sqb.complexityradar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.AnalyzeMode
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UFile
 import org.jetbrains.uast.UMethod

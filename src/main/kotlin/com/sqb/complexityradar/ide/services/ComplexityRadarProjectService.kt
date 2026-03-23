@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.services
+package com.bril.code_radar.ide.services
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ModalityState
@@ -24,22 +24,22 @@ import com.intellij.psi.PsiManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.update.MergingUpdateQueue
 import com.intellij.util.ui.update.Update
-import com.sqb.complexityradar.adapters.LanguageAdapter
-import com.sqb.complexityradar.adapters.java.JavaLanguageAdapter
-import com.sqb.complexityradar.adapters.kotlin.KotlinLanguageAdapter
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.RadarConfig
-import com.sqb.complexityradar.core.model.ScoreDigest
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.core.scoring.ComplexityScorer
-import com.sqb.complexityradar.core.scoring.Normalization
-import com.sqb.complexityradar.ide.cache.ComplexityResultStore
-import com.sqb.complexityradar.integration.AiPromptService
-import com.sqb.complexityradar.integration.ExportService
-import com.sqb.complexityradar.integration.VcsFacade
-import com.sqb.complexityradar.settings.ComplexityUiSettingsService
-import com.sqb.complexityradar.settings.RadarConfigService
+import com.bril.code_radar.adapters.LanguageAdapter
+import com.bril.code_radar.adapters.java.JavaLanguageAdapter
+import com.bril.code_radar.adapters.kotlin.KotlinLanguageAdapter
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.RadarConfig
+import com.bril.code_radar.core.model.ScoreDigest
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.core.scoring.ComplexityScorer
+import com.bril.code_radar.core.scoring.Normalization
+import com.bril.code_radar.ide.cache.ComplexityResultStore
+import com.bril.code_radar.integration.AiPromptService
+import com.bril.code_radar.integration.ExportService
+import com.bril.code_radar.integration.VcsFacade
+import com.bril.code_radar.settings.ComplexityUiSettingsService
+import com.bril.code_radar.settings.RadarConfigService
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 

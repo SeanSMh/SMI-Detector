@@ -1,8 +1,8 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.Severity
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.Severity
 
 internal data class FocusedViewSnapshot(
     val currentResult: ComplexityResult?,

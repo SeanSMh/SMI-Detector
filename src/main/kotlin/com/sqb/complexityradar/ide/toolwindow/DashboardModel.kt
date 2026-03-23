@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 enum class DashboardTab {
     OVERVIEW,

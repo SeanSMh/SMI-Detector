@@ -1,10 +1,10 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.Severity
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.Severity
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.Dimension

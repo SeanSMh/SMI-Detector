@@ -1,5 +1,5 @@
 <idea-plugin>
-  <id>com.sqb.complexityradar</id>
+  <id>com.bril.code_radar</id>
   <name>Complexity Radar</name>
   <vendor email="sqb@example.com">sqb</vendor>
 
@@ -11,25 +11,25 @@
   <extensions defaultExtensionNs="com.intellij">
     <toolWindow
         id="SMI Detector"
-        factoryClass="com.sqb.complexityradar.ide.toolwindow.ComplexityRadarToolWindowFactory"
+        factoryClass="com.bril.code_radar.ide.toolwindow.ComplexityRadarToolWindowFactory"
         anchor="right"
         icon="/META-INF/pluginIcon.svg"
         secondary="true"/>
-    <projectViewNodeDecorator implementation="com.sqb.complexityradar.ide.projectview.ComplexityProjectViewDecorator"/>
-    <editorNotificationProvider implementation="com.sqb.complexityradar.ide.editor.ComplexityEditorNotificationProvider"/>
+    <projectViewNodeDecorator implementation="com.bril.code_radar.ide.projectview.ComplexityProjectViewDecorator"/>
+    <editorNotificationProvider implementation="com.bril.code_radar.ide.editor.ComplexityEditorNotificationProvider"/>
     <codeInsight.lineMarkerProvider
         language="JAVA"
-        implementationClass="com.sqb.complexityradar.ide.gutter.ComplexityLineMarkerProvider"/>
+        implementationClass="com.bril.code_radar.ide.gutter.ComplexityLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider
         language="kotlin"
-        implementationClass="com.sqb.complexityradar.ide.gutter.ComplexityLineMarkerProvider"/>
-    <postStartupActivity implementation="com.sqb.complexityradar.ide.startup.ComplexityRadarStartupActivity"/>
+        implementationClass="com.bril.code_radar.ide.gutter.ComplexityLineMarkerProvider"/>
+    <postStartupActivity implementation="com.bril.code_radar.ide.startup.ComplexityRadarStartupActivity"/>
     <projectConfigurable
-        instance="com.sqb.complexityradar.ide.settings.ComplexityRadarConfigurable"
-        id="com.sqb.complexityradar.settings"
+        instance="com.bril.code_radar.ide.settings.ComplexityRadarConfigurable"
+        id="com.bril.code_radar.settings"
         displayName="Complexity Radar"
         parentId="tools"/>
-    <checkinHandlerFactory implementation="com.sqb.complexityradar.ide.vcs.ComplexityRadarCheckinHandlerFactory"/>
+    <checkinHandlerFactory implementation="com.bril.code_radar.ide.vcs.ComplexityRadarCheckinHandlerFactory"/>
   </extensions>
 
   <extensions defaultExtensionNs="org.jetbrains.kotlin">
@@ -39,24 +39,24 @@
   <actions>
     <action
         id="ComplexityRadar.OpenToolWindow"
-        class="com.sqb.complexityradar.ide.actions.OpenRadarToolWindowAction"
+        class="com.bril.code_radar.ide.actions.OpenRadarToolWindowAction"
         text="Open Complexity Radar"
         description="Open the Complexity Radar tool window">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action
         id="ComplexityRadar.CopyPrompt"
-        class="com.sqb.complexityradar.ide.actions.CopyRefactorPromptAction"
+        class="com.bril.code_radar.ide.actions.CopyRefactorPromptAction"
         text="Copy Refactor Prompt"
         description="Copy the AI refactor prompt for the current file"/>
     <action
         id="ComplexityRadar.RunExternalCommand"
-        class="com.sqb.complexityradar.ide.actions.RunExternalCommandAction"
+        class="com.bril.code_radar.ide.actions.RunExternalCommandAction"
         text="Run Complexity External Command"
         description="Run the configured external command for the current file"/>
     <action
         id="ComplexityRadar.ToggleMode"
-        class="com.sqb.complexityradar.ide.actions.ToggleAnalysisModeAction"
+        class="com.bril.code_radar.ide.actions.ToggleAnalysisModeAction"
         text="Reanalyze Current File Accurately"
         description="Reanalyze the current file in accurate mode"/>
   </actions>

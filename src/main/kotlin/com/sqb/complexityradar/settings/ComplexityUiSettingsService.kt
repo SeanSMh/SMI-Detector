@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.settings
+package com.bril.code_radar.settings
 
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -6,7 +6,7 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.sqb.complexityradar.core.model.UiSettingsState
+import com.bril.code_radar.core.model.UiSettingsState
 
 @State(name = "ComplexityRadarUiSettings", storages = [Storage("complexity-radar-ui.xml")])
 @Service(Service.Level.PROJECT)

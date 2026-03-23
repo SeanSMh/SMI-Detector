@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.adapters.common
+package com.bril.code_radar.adapters.common
 
 import com.intellij.openapi.editor.Document
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.sqb.complexityradar.core.model.DomainTag
-import com.sqb.complexityradar.core.model.RuleEvidence
+import com.bril.code_radar.core.model.DomainTag
+import com.bril.code_radar.core.model.RuleEvidence
 import kotlin.math.max
 
 data class DomainAnalysis(

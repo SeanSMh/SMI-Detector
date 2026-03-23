@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.ide.settings
+package com.bril.code_radar.ide.settings
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.EditorNotifications
-import com.sqb.complexityradar.settings.ComplexityUiSettingsService
+import com.bril.code_radar.settings.ComplexityUiSettingsService
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
@@ -26,7 +26,7 @@ class ComplexityRadarConfigurable(
     private var gutterBox: JCheckBox? = null
     private var externalCommandField: JTextField? = null
 
-    override fun getId(): String = "com.sqb.complexityradar.settings"
+    override fun getId(): String = "com.bril.code_radar.settings"
 
     override fun getDisplayName(): String = "Complexity Radar"
 

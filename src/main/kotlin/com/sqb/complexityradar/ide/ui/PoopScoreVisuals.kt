@@ -1,7 +1,7 @@
-package com.sqb.complexityradar.ide.ui
+package com.bril.code_radar.ide.ui
 
 import com.intellij.ui.JBColor
-import com.sqb.complexityradar.core.model.Severity
+import com.bril.code_radar.core.model.Severity
 import java.awt.Color
 
 private const val POOP_GLYPH = "\uD83D\uDCA9"

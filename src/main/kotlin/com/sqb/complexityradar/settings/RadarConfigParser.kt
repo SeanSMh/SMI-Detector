@@ -1,17 +1,17 @@
-package com.sqb.complexityradar.settings
+package com.bril.code_radar.settings
 
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.HotspotConfig
-import com.sqb.complexityradar.core.model.ModeConfig
-import com.sqb.complexityradar.core.model.MultiplierRule
-import com.sqb.complexityradar.core.model.NormalizationConfig
-import com.sqb.complexityradar.core.model.RadarConfig
-import com.sqb.complexityradar.core.model.RadarConfigDefaults
-import com.sqb.complexityradar.core.model.RulesConfig
-import com.sqb.complexityradar.core.model.ScalePoint
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.core.model.SeverityRange
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.HotspotConfig
+import com.bril.code_radar.core.model.ModeConfig
+import com.bril.code_radar.core.model.MultiplierRule
+import com.bril.code_radar.core.model.NormalizationConfig
+import com.bril.code_radar.core.model.RadarConfig
+import com.bril.code_radar.core.model.RadarConfigDefaults
+import com.bril.code_radar.core.model.RulesConfig
+import com.bril.code_radar.core.model.ScalePoint
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.core.model.SeverityRange
 import org.yaml.snakeyaml.Yaml
 
 object RadarConfigParser {

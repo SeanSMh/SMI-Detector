@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.cache
+package com.bril.code_radar.ide.cache
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 

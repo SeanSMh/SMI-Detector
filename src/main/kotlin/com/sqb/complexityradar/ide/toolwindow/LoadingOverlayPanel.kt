@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI

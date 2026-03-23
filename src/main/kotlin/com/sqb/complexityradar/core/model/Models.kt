@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.core.model
+package com.bril.code_radar.core.model
 
 import com.intellij.openapi.vfs.VirtualFile
 import kotlin.math.roundToInt

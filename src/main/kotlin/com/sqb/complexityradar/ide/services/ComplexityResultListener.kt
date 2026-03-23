@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.services
+package com.bril.code_radar.ide.services
 
 import com.intellij.util.messages.Topic
 

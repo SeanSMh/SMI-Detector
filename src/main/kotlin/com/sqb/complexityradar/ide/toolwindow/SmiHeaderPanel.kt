@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
@@ -6,7 +6,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.ide.ui.UiThemeTokens
+import com.bril.code_radar.ide.ui.UiThemeTokens
 import java.awt.BorderLayout
 import java.awt.Cursor
 import java.awt.Dimension

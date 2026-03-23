@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow

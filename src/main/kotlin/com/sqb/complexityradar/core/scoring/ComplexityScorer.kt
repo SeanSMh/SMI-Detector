@@ -1,16 +1,16 @@
-package com.sqb.complexityradar.core.scoring
+package com.bril.code_radar.core.scoring
 
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.toDigest
-import com.sqb.complexityradar.core.model.DomainTag
-import com.sqb.complexityradar.core.model.FactorContribution
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.FileAstSummary
-import com.sqb.complexityradar.core.model.Hotspot
-import com.sqb.complexityradar.core.model.MultiplierRule
-import com.sqb.complexityradar.core.model.RadarConfig
-import com.sqb.complexityradar.core.model.ScoreDigest
-import com.sqb.complexityradar.core.model.Severity
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.toDigest
+import com.bril.code_radar.core.model.DomainTag
+import com.bril.code_radar.core.model.FactorContribution
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.FileAstSummary
+import com.bril.code_radar.core.model.Hotspot
+import com.bril.code_radar.core.model.MultiplierRule
+import com.bril.code_radar.core.model.RadarConfig
+import com.bril.code_radar.core.model.ScoreDigest
+import com.bril.code_radar.core.model.Severity
 import java.security.MessageDigest
 import kotlin.math.roundToInt
 
@@ -19,7 +19,7 @@ class ComplexityScorer {
         summary: FileAstSummary,
         fileUrl: String,
         filePath: String,
-        mode: com.sqb.complexityradar.core.model.AnalyzeMode,
+        mode: com.bril.code_radar.core.model.AnalyzeMode,
         config: RadarConfig,
         hotspots: List<Hotspot>,
         churnNormalized: Double = 0.0,

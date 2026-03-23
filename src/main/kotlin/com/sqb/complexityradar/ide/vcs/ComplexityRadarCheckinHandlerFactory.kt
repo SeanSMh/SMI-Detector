@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.ide.vcs
+package com.bril.code_radar.ide.vcs
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vcs.CheckinProjectPanel
 import com.intellij.openapi.vcs.changes.CommitContext
 import com.intellij.openapi.vcs.checkin.CheckinHandler
 import com.intellij.openapi.vcs.checkin.CheckinHandlerFactory
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
 
 class ComplexityRadarCheckinHandlerFactory : CheckinHandlerFactory() {
     override fun createHandler(

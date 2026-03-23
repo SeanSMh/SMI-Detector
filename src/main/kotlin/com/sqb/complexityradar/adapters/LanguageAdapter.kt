@@ -1,10 +1,10 @@
-package com.sqb.complexityradar.adapters
+package com.bril.code_radar.adapters
 
 import com.intellij.psi.PsiFile
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.core.model.FileAstSummary
-import com.sqb.complexityradar.core.model.Hotspot
-import com.sqb.complexityradar.core.model.RadarConfig
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.FileAstSummary
+import com.bril.code_radar.core.model.Hotspot
+import com.bril.code_radar.core.model.RadarConfig
 
 data class FileAnalysis(
     val summary: FileAstSummary,

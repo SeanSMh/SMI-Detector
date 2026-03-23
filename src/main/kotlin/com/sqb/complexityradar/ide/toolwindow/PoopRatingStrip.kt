@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.ide.ui.poopAccentColor
-import com.sqb.complexityradar.ide.ui.poopMutedColor
-import com.sqb.complexityradar.ide.ui.poopScoreCount
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.ide.ui.poopAccentColor
+import com.bril.code_radar.ide.ui.poopMutedColor
+import com.bril.code_radar.ide.ui.poopScoreCount
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.Dimension

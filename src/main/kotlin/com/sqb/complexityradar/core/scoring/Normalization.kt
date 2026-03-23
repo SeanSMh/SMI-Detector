@@ -1,6 +1,6 @@
-package com.sqb.complexityradar.core.scoring
+package com.bril.code_radar.core.scoring
 
-import com.sqb.complexityradar.core.model.ScalePoint
+import com.bril.code_radar.core.model.ScalePoint
 
 object Normalization {
     fun piecewise(

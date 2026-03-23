@@ -1,7 +1,7 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.ide.ui.UiThemeTokens
+import com.bril.code_radar.ide.ui.UiThemeTokens
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor

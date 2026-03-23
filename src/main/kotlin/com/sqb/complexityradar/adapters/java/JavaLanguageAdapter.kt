@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.adapters.java
+package com.bril.code_radar.adapters.java
 
 import com.intellij.psi.JavaRecursiveElementVisitor
 import com.intellij.psi.JavaTokenType
@@ -22,17 +22,17 @@ import com.intellij.psi.PsiSwitchStatement
 import com.intellij.psi.PsiTryStatement
 import com.intellij.psi.PsiWhileStatement
 import com.intellij.psi.util.PsiTreeUtil
-import com.sqb.complexityradar.adapters.FileAnalysis
-import com.sqb.complexityradar.adapters.LanguageAdapter
-import com.sqb.complexityradar.adapters.common.AnalysisSupport
-import com.sqb.complexityradar.adapters.common.AccurateSemanticSignalCollector
-import com.sqb.complexityradar.adapters.common.DomainEvidenceCollector
-import com.sqb.complexityradar.adapters.common.addIfPresent
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.core.model.FileAstSummary
-import com.sqb.complexityradar.core.model.Hotspot
-import com.sqb.complexityradar.core.model.RadarConfig
-import com.sqb.complexityradar.core.scoring.ComplexityScorer
+import com.bril.code_radar.adapters.FileAnalysis
+import com.bril.code_radar.adapters.LanguageAdapter
+import com.bril.code_radar.adapters.common.AnalysisSupport
+import com.bril.code_radar.adapters.common.AccurateSemanticSignalCollector
+import com.bril.code_radar.adapters.common.DomainEvidenceCollector
+import com.bril.code_radar.adapters.common.addIfPresent
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.core.model.FileAstSummary
+import com.bril.code_radar.core.model.Hotspot
+import com.bril.code_radar.core.model.RadarConfig
+import com.bril.code_radar.core.scoring.ComplexityScorer
 
 class JavaLanguageAdapter(
     private val scorer: ComplexityScorer = ComplexityScorer(),

@@ -1,11 +1,11 @@
-package com.sqb.complexityradar.settings
+package com.bril.code_radar.settings
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.sqb.complexityradar.core.model.RadarConfig
-import com.sqb.complexityradar.core.model.RadarConfigDefaults
+import com.bril.code_radar.core.model.RadarConfig
+import com.bril.code_radar.core.model.RadarConfigDefaults
 import java.nio.file.Files
 import java.nio.file.Path
 

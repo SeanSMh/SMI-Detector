@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.toolwindow
+package com.bril.code_radar.ide.toolwindow
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -15,12 +15,12 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBusConnection
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.FactorType
-import com.sqb.complexityradar.core.model.Severity
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
-import com.sqb.complexityradar.ide.services.ComplexityResultListener
-import com.sqb.complexityradar.ide.services.RefreshableComplexityView
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.FactorType
+import com.bril.code_radar.core.model.Severity
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.ide.services.ComplexityResultListener
+import com.bril.code_radar.ide.services.RefreshableComplexityView
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
@@ -97,7 +97,7 @@ internal class SmiDashboardPanel(
 
         // Set plugin version in footer
         runCatching {
-            val pluginId = com.intellij.openapi.extensions.PluginId.getId("com.sqb.complexityradar")
+            val pluginId = com.intellij.openapi.extensions.PluginId.getId("com.bril.code_radar")
             val version = com.intellij.ide.plugins.PluginManagerCore.getPlugin(pluginId)?.version ?: ""
             footerPanel.setVersion(version)
         }
@@ -330,7 +330,7 @@ internal class SmiDashboardPanel(
         if (service.uiSettings().showGutterIcons) "Hide Gutter Icons" else "Show Gutter Icons"
 
     private fun onToggleGutter() {
-        val uiSettings = project.getService(com.sqb.complexityradar.settings.ComplexityUiSettingsService::class.java)
+        val uiSettings = project.getService(com.bril.code_radar.settings.ComplexityUiSettingsService::class.java)
         uiSettings.update { it.showGutterIcons = !it.showGutterIcons }
         com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
     }

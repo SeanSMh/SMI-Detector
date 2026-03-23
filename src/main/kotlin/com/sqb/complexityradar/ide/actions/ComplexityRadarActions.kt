@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.actions
+package com.bril.code_radar.ide.actions
 
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.OSProcessHandler
@@ -7,8 +7,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.SystemInfo
-import com.sqb.complexityradar.core.model.AnalyzeMode
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.core.model.AnalyzeMode
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
 import java.awt.datatransfer.StringSelection
 
 class OpenRadarToolWindowAction : AnAction() {
@@ -76,7 +76,7 @@ class ToggleAnalysisModeAction : AnAction() {
 class ToggleGutterIconsAction : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val settings = com.sqb.complexityradar.settings.ComplexityUiSettingsService.getInstance(project)
+        val settings = com.bril.code_radar.settings.ComplexityUiSettingsService.getInstance(project)
         settings.update { it.showGutterIcons = !it.showGutterIcons }
         com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
     }

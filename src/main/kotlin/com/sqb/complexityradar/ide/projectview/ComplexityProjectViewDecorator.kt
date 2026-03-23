@@ -1,13 +1,13 @@
-package com.sqb.complexityradar.ide.projectview
+package com.bril.code_radar.ide.projectview
 
 import com.intellij.ide.projectView.ProjectViewNode
 import com.intellij.ide.projectView.ProjectViewNodeDecorator
 import com.intellij.ide.projectView.PresentationData
 import com.intellij.util.ui.JBUI
-import com.sqb.complexityradar.ide.services.ComplexityRadarProjectService
-import com.sqb.complexityradar.ide.ui.poopAccentColor
-import com.sqb.complexityradar.ide.ui.poopScoreCount
-import com.sqb.complexityradar.ide.ui.poopTooltipLabel
+import com.bril.code_radar.ide.services.ComplexityRadarProjectService
+import com.bril.code_radar.ide.ui.poopAccentColor
+import com.bril.code_radar.ide.ui.poopScoreCount
+import com.bril.code_radar.ide.ui.poopTooltipLabel
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.Component

@@ -1,4 +1,4 @@
-package com.sqb.complexityradar.ide.cache
+package com.bril.code_radar.ide.cache
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
@@ -6,9 +6,9 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.concurrency.AppExecutorUtil
-import com.sqb.complexityradar.core.model.ComplexityResult
-import com.sqb.complexityradar.core.model.ScoreDigest
-import com.sqb.complexityradar.core.model.toDigest
+import com.bril.code_radar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.ScoreDigest
+import com.bril.code_radar.core.model.toDigest
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -147,6 +147,6 @@ class ComplexityResultStore(
 
     companion object {
         private val LOG = Logger.getInstance(ComplexityResultStore::class.java)
-        val DIGEST_KEY: Key<ScoreDigest> = Key.create("com.sqb.complexityradar.digest")
+        val DIGEST_KEY: Key<ScoreDigest> = Key.create("com.bril.code_radar.digest")
     }
 }

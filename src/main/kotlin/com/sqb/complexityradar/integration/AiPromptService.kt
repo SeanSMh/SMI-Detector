@@ -1,6 +1,6 @@
-package com.sqb.complexityradar.integration
+package com.bril.code_radar.integration
 
-import com.sqb.complexityradar.core.model.ComplexityResult
+import com.bril.code_radar.core.model.ComplexityResult
 import java.nio.file.Files
 import java.nio.file.Path
 
