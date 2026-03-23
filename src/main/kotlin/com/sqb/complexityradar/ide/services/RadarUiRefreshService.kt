@@ -53,7 +53,11 @@ class RadarUiRefreshService(
             editorNotifications.updateNotifications(file)
         }
         ProjectView.getInstance(project).refresh()
-        DaemonCodeAnalyzer.getInstance(project).restart()
+        // 只在当前打开的文件有更新时才 restart Daemon，避免启动扫描期间对每批文件都全量重启
+        val openFiles = FileEditorManager.getInstance(project).openFiles.toSet()
+        if (files.any { it in openFiles }) {
+            DaemonCodeAnalyzer.getInstance(project).restart()
+        }
     }
 
     override fun dispose() = Unit

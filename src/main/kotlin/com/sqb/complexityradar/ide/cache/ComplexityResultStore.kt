@@ -1,5 +1,6 @@
 package com.sqb.complexityradar.ide.cache
 
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
@@ -80,7 +81,10 @@ class ComplexityResultStore(
                 runCatching {
                     val result = JsonSupport.mapper.readValue(Files.readString(path), ComplexityResult::class.java)
                     results[result.fileUrl] = result
-                    VirtualFileManager.getInstance().findFileByUrl(result.fileUrl)?.putUserData(DIGEST_KEY, digestFrom(result))
+                    // VFS 访问需在 ReadAction 内进行（后台线程无隐式 Read Lock）
+                    ReadAction.compute<Unit, RuntimeException> {
+                        VirtualFileManager.getInstance().findFileByUrl(result.fileUrl)?.putUserData(DIGEST_KEY, digestFrom(result))
+                    }
                 }.onFailure { error ->
                     LOG.warn("Failed to restore complexity cache from $path", error)
                 }

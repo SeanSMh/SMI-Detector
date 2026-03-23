@@ -62,6 +62,12 @@ class ComplexityRadarProjectService(
     private val publishQueue = MergingUpdateQueue("ComplexityRadarPublish", 300, true, null, this)
     private val pendingPublishedFileUrls = ConcurrentHashMap.newKeySet<String>()
     private val vcsTriggeredVfsBatch = AtomicBoolean(false)
+    // 专用有界线程池：隔离 git I/O，避免占满共享 AppExecutorService
+    // 线程数 = max(2, CPU/4)，git 操作是 I/O 密集型，不需要太多并发
+    private val analysisExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor(
+        "ComplexityRadarAnalysisWorker",
+        maxOf(2, Runtime.getRuntime().availableProcessors() / 4),
+    )
 
     fun start() {
         if (!started.compareAndSet(false, true)) {
@@ -80,8 +86,9 @@ class ComplexityRadarProjectService(
     fun queueProjectAnalysis(
         onProgress: (processed: Int, total: Int) -> Unit = { _, _ -> },
     ): ProjectQueueReport {
-        val collection =
-            ReadAction.compute<ProjectQueueCollection, RuntimeException> {
+        // Step 1: 在 ReadAction 内只做 VFS 访问，收集候选文件
+        val vfsCollection =
+            ReadAction.compute<VfsCollection, RuntimeException> {
                 val collected = linkedMapOf<String, VirtualFile>()
                 var visitedCount = 0
                 var supportedCount = 0
@@ -124,21 +131,8 @@ class ComplexityRadarProjectService(
                     currentFile()?.let(::collect)
                 }
 
-                // Filter by config within the same ReadAction to batch all PSI/VFS reads
-                val scheduled = linkedMapOf<String, Pair<VirtualFile, AnalyzeMode>>()
-                var excludedByConfigCount = 0
-                collected.values.forEach { file ->
-                    val config = configService.getConfig(file)
-                    if (config.isExcluded(file)) {
-                        excludedByConfigCount += 1
-                    } else {
-                        scheduled.putIfAbsent(file.url, file to config.mode.default)
-                    }
-                }
-
-                ProjectQueueCollection(
-                    scheduled = scheduled,
-                    excludedByConfigCount = excludedByConfigCount,
+                VfsCollection(
+                    collected = collected,
                     visitedCount = visitedCount,
                     supportedCount = supportedCount,
                     withinProjectCount = withinProjectCount,
@@ -147,7 +141,27 @@ class ComplexityRadarProjectService(
                 )
             }
 
-        val scheduled = collection.scheduled
+        // Step 2: config 过滤在 ReadAction 外执行 — radar.yaml 是磁盘 I/O，不应持有 Read Lock
+        val scheduled = linkedMapOf<String, Pair<VirtualFile, AnalyzeMode>>()
+        var excludedByConfigCount = 0
+        vfsCollection.collected.values.forEach { file ->
+            val config = configService.getConfig(file)
+            if (config.isExcluded(file)) {
+                excludedByConfigCount += 1
+            } else {
+                scheduled.putIfAbsent(file.url, file to config.mode.default)
+            }
+        }
+
+        val collection = ProjectQueueCollection(
+            scheduled = scheduled,
+            excludedByConfigCount = excludedByConfigCount,
+            visitedCount = vfsCollection.visitedCount,
+            supportedCount = vfsCollection.supportedCount,
+            withinProjectCount = vfsCollection.withinProjectCount,
+            fallbackUsed = vfsCollection.fallbackUsed,
+            currentFileFallbackUsed = vfsCollection.currentFileFallbackUsed,
+        )
 
         val total = scheduled.size
         if (total == 0) {
@@ -274,6 +288,7 @@ class ComplexityRadarProjectService(
     override fun dispose() {
         uiRefreshService.dispose()
         store.dispose()
+        analysisExecutor.shutdown()
     }
 
     private fun refreshRadarViews() {
@@ -354,6 +369,17 @@ class ComplexityRadarProjectService(
         file: VirtualFile,
         mode: AnalyzeMode,
     ) {
+        // MergingUpdateQueue 默认在 EDT 执行 Update.run()，立即切到专用有界线程池，
+        // 避免 commitCountFor() 的阻塞 git I/O 卡住 UI 或占满共享线程池
+        analysisExecutor.submit {
+            analyzeInBackgroundTask(file, mode)
+        }
+    }
+
+    private fun analyzeInBackgroundTask(
+        file: VirtualFile,
+        mode: AnalyzeMode,
+    ) {
         // Compute churn outside the read lock (VCS I/O should not hold a read lock)
         val churnNormalized = Normalization.piecewise(
             vcsFacade.commitCountFor(file).toDouble(),
@@ -392,7 +418,7 @@ class ComplexityRadarProjectService(
                         queueResultPublication(attempt.fileUrl)
                     }
                 }
-            }.submit(AppExecutorUtil.getAppExecutorService())
+            }.submit(analysisExecutor)
     }
 
     private fun queueResultPublication(fileUrl: String) {
@@ -628,6 +654,15 @@ private sealed class AnalysisAttempt(open val fileUrl: String) {
         override val fileUrl: String,
     ) : AnalysisAttempt(fileUrl)
 }
+
+private data class VfsCollection(
+    val collected: LinkedHashMap<String, VirtualFile>,
+    val visitedCount: Int,
+    val supportedCount: Int,
+    val withinProjectCount: Int,
+    val fallbackUsed: Boolean,
+    val currentFileFallbackUsed: Boolean,
+)
 
 private data class ProjectQueueCollection(
     val scheduled: LinkedHashMap<String, Pair<VirtualFile, AnalyzeMode>>,
