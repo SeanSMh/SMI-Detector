@@ -7,7 +7,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git log:*)",
-      "Bash(./gradlew build:*)"
+      "Bash(./gradlew build:*)",
+      "Bash(python3:*)",
+      "Bash(git show:*)",
+      "Bash(kotlin -)"
     ]
   }
 }
